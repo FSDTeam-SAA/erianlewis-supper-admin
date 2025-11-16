@@ -5,15 +5,15 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
-  DollarSign,
-  FileText,
+
+ 
   LogOut,
-  ShoppingCart,
-  Grip,
-  ShoppingBasket,
-  Scissors,
-  MessageSquare,
-  // Bell,
+
+ 
+ 
+
+
+
 } from "lucide-react";
 import Image from "next/image";
 // import logoImage from "@/public/images/logo.svg";

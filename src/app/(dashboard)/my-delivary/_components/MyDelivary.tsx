@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, Trash2, View } from "lucide-react";
+import { ChevronRight, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
