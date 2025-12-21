@@ -10,7 +10,7 @@ import {
   TruckElectric,
 } from "lucide-react";
 import Image from "next/image";
-import { LogoutModal } from "../modal/LogoutModal";
+import { LogoutModal } from "../modal/Logout";
 import { useState } from "react";
 
 const navigation = [
