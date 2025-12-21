@@ -75,7 +75,7 @@ const DeliveryOrderList: React.FC = () => {
     queryKey: ["orders"],
     queryFn: async () => {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/payment/getorders`
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/payment/ridersorder`
       );
       if (!res.ok) throw new Error("Failed to fetch orders");
       return res.json();
@@ -144,7 +144,7 @@ const DeliveryOrderList: React.FC = () => {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
         <div className="flex-1">
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
             Delivery Orders

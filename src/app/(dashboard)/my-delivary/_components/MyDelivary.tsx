@@ -138,7 +138,7 @@ const MyDelivary: React.FC = () => {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
         <div className="flex-1">
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
             Delivery Orders
@@ -188,10 +188,10 @@ const MyDelivary: React.FC = () => {
               <div className="col-span-1 text-xs font-semibold text-gray-600 uppercase text-center">
                 Delivery Status
               </div>
-              <div className="col-span-1 text-xs font-semibold text-gray-600 uppercase text-center">
+              <div className="col-span-2 text-xs font-semibold text-gray-600 uppercase text-center">
                 Payment
               </div>
-              <div className="col-span-3 text-xs font-semibold text-gray-600 uppercase text-end">
+              <div className="col-span-2 text-xs font-semibold text-gray-600 uppercase text-center">
                 Actions
               </div>
             </div>
@@ -272,16 +272,15 @@ const MyDelivary: React.FC = () => {
                 </div>
 
                 {/* Payment Method */}
-                <div className="col-span-1 flex items-center justify-center">
-                  <span className="text-sm font-medium text-blue-600 capitalize">
+                <div className="col-span-2 flex items-center justify-center">
+                  <span className="text-sm font-medium text-blue-600 capitalize ">
                     {order.paymentMethod || "cod"}
                   </span>
                 </div>
 
                 {/* Actions */}
-                <div className="col-span-3 flex items-center justify-end gap-3">
-                  
-           <ViewOrderModal singleorderId = {order._id}/>
+                <div className="col-span-2 flex items-center justify-center gap-3">
+                  <ViewOrderModal singleorderId={order._id} />
 
                   <Button
                     variant="outline"

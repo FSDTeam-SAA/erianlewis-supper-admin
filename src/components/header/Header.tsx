@@ -15,7 +15,7 @@ export default function Header() {
   const { data: session } = useSession();
     const user = session?.user as any;
     const email = user?.email;
-    console.log(email)
+    console.log(session)
 
     
 
