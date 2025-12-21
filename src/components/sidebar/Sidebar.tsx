@@ -12,7 +12,6 @@ import {
 import Image from "next/image";
 import { LogoutModal } from "../modal/LogoutModal";
 import { useState } from "react";
-// import logoImage from "@/public/images/logo.svg";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
