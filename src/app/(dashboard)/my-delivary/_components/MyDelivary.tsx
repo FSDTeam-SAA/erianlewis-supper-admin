@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ViewOrderModal } from "@/components/modal/ViewOrderModal";
+import Loading from "@/components/shear/Loading";
 
 // 🔹 API Response Types
 interface Product {
@@ -128,7 +129,7 @@ const MyDelivary: React.FC = () => {
       day: "2-digit",
     });
 
-  if (isLoading) return <p>Loading...</p>;
+  if (isLoading) return <Loading />;
   if (isError) return <p className="text-red-500">Error loading orders</p>;
 
   const deliveryOrders = (response?.orders || []).filter(

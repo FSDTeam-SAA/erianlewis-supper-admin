@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Edit, Trash2, ChevronRight, CheckCircle, CircleCheckBig } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import Loading from "@/components/shear/Loading";
 
 // 🔹 API Response Types
 interface Product {
@@ -133,7 +134,7 @@ const DeliveryOrderList: React.FC = () => {
       day: "2-digit",
     });
 
-  if (isLoading) return <p>Loading...</p>;
+  if (isLoading) return <Loading />;
   if (isError) return <p className="text-red-500">Error loading orders</p>;
 
   // Filter only delivery orders
@@ -288,17 +289,6 @@ const DeliveryOrderList: React.FC = () => {
                       Accept
                     </Button>
                   )}
-
-                  <Link href={`/orders/edit/${order._id}`}>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="border-blue-200 text-blue-600 hover:bg-blue-50 rounded-lg"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                  </Link>
-
                   <Button
                     variant="outline"
                     size="icon"
