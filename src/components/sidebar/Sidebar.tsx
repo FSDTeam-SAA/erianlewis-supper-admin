@@ -10,7 +10,7 @@ import {
   TruckElectric,
 } from "lucide-react";
 import Image from "next/image";
-import { LogoutModal } from "../modal/Logout";
+// import { LogoutModal } from "../modal/Logout";
 import { useState } from "react";
 
 const navigation = [
@@ -100,10 +100,10 @@ export function Sidebar() {
         </div>
       </div>
 
-      <LogoutModal
+      {/* <LogoutModal
         open={open}
         onClose={() => setOpen(false)}
-      />
+      /> */}
     </div>
   );
 }
