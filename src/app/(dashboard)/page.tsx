@@ -1,9 +1,10 @@
 import React from 'react'
+import CommendCenter from './_components/CommendCenter'
 
 function page() {
   return (
-    <div className='container mx-auto py-10'>
-      <h1 className='text-2xl font-bold'>Welcome to Superadmin Dashboard</h1>
+    <div className='container mx-auto'>
+      <CommendCenter />
     </div>
   )
 }

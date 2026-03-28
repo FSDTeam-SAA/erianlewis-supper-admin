@@ -9,7 +9,7 @@ function layout({ children }: { children: React.ReactNode }) {
       <Header />
       <div className="">
         <Navigation />
-        <div className="bg-[#F9FAFB] py-10">
+        <div className="bg-[#F9FAFB]">
           {children}
         </div>
       </div>
