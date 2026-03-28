@@ -1,18 +1,16 @@
 // import AppProvider from "@/provider/AppProvider";
 import Header from "@/components/header/Header";
-import { Sidebar } from "@/components/sidebar/Sidebar";
+import Navigation from "@/components/navigation/Navigation";
 import React from "react";
 
 function layout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Header />
-      <div className="flex">
-        <Sidebar />
-        <div className="w-full mt-[80px] p-6">
-          {/* <AppProvider> */}
-            {children}
-            {/* </AppProvider> */}
+      <div className="">
+        <Navigation />
+        <div className="bg-[#F9FAFB] py-10">
+          {children}
         </div>
       </div>
     </>

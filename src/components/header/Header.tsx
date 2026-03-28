@@ -1,59 +1,43 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-"use client";
+import React from "react";
+import { Shield, Lock } from "lucide-react";
 
-import React, { useState, useRef, useEffect } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useSession } from "next-auth/react";
-export default function Header() {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const avatarRef = useRef<HTMLDivElement>(null);
-  const { data: session } = useSession();
-    const user = session?.user as any;
-    const email = user?.email;
-    console.log(session)
-
-    
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node) &&
-        avatarRef.current &&
-        !avatarRef.current.contains(event.target as Node)
-      ) {
-        setIsDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
-  const toggleDropdown = () => {
-    setIsDropdownOpen(!isDropdownOpen);
-  };
+function Header() {
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 flex h-[80px] items-center justify-between px-6 bg-[#212121] shadow-md">
-      <div className="flex items-center space-x-2"></div>
+    <header className="w-full" style={{ background: "linear-gradient(90deg, #DB2626 0%, #B91C1C 100%)" }}>
+      <div className="h-[159px] flex items-center justify-between container mx-auto">
+        {/* Left Section */}
+        <div className="flex items-center gap-4">
+          {/* Shield Icon */}
+          <div className="flex items-center justify-center">
+            <Shield className="w-12 h-12 text-white/80 stroke-[1.5]" />
+          </div>
 
-      <div className="relative flex items-center space-x-3">
-        <div
-          ref={avatarRef}
-          className="flex items-center space-x-2 text-white text-sm cursor-pointer hover:bg-white/10 rounded-lg px-2 py-1 transition-colors"
-          onClick={toggleDropdown}
-        >
-          <span>{email}</span>
-          <Avatar className="h-8 w-8">
-            <AvatarImage src="/placeholder.svg?height=32&width=32" />
-            <AvatarFallback className="text-black">TA</AvatarFallback>
-          </Avatar>
+          {/* Title & Subtitle */}
+          <div className="flex flex-col">
+            <h1 className="text-white font-bold text-[32px] leading-[100%]">
+              Superadmin Control Center
+            </h1>
+            <div className="mt-6">
+              <p className="text-white text-base mt-0.5 font-normal leading-[100%]">
+                Platform Owner Dashboard · Full System Authority
+              </p>
+              <p className="text-white text-base mt-3 font-normal leading-[100%]">
+                Access: erian264
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Section */}
+        <div className="flex items-center gap-2 rounded-md px-4 py-2 bg-[#FFFFFF1A]">
+          <Lock className="w-4 h-4 text-white/80" />
+          <span className="text-white text-sm font-medium">
+            Superadmin (erian264)
+          </span>
         </div>
       </div>
-    </div>
+    </header>
   );
 }
+
+export default Header;
