@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Activity,
   Map,
@@ -16,21 +18,21 @@ import {
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { label: "Commend Center", icon: Activity },
-  { label: "Island", icon: Map },
-  { label: "Accounts", icon: Users },
-  { label: "Listing", icon: Building2 },
-  { label: "Reviews", icon: Star },
-  { label: "Billing", icon: DollarSign },
-  { label: "Manage Plans", icon: CreditCard },
-  { label: "Management Inquires", icon: Mail },
-  { label: "Audit Logs", icon: FileText },
-  { label: "Communication Log", icon: MessageSquare },
+  { label: "Commend Center", icon: Activity, href: "/" },
+  { label: "Island", icon: Map, href: "/island" },
+  { label: "Accounts", icon: Users, href: "/accounts" },
+  { label: "Listing", icon: Building2, href: "/listing" },
+  { label: "Reviews", icon: Star, href: "/reviews" },
+  { label: "Billing", icon: DollarSign, href: "/billing" },
+  { label: "Manage Plans", icon: CreditCard, href: "/plan" },
+  { label: "Management Inquires", icon: Mail, href: "/inquires" },
+  { label: "Audit Logs", icon: FileText, href: "/audit-logs" },
+  { label: "Communication Log", icon: MessageSquare, href: "/communication-log" },
 ];
 
 function Navigation() {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [activeItem, setActiveItem] = useState("Commend Center");
+  const pathname = usePathname();
 
   return (
     <nav>
@@ -41,13 +43,13 @@ function Navigation() {
             ref={scrollRef}
             className="flex items-end gap-3 overflow-x-auto flex-1 scroll-smooth no-scrollbar"
           >
-            {navItems.map(({ label, icon: Icon }) => {
-              const isActive = activeItem === label;
+            {navItems.map(({ label, icon: Icon, href }) => {
+              const isActive = pathname === href;
 
               return (
-                <button
+                <Link
                   key={label}
-                  onClick={() => setActiveItem(label)}
+                  href={href}
                   className={cn(
                     "flex items-center gap-3 px-4 h-[88px] text-base font-medium whitespace-nowrap border-b-2 transition-all duration-150",
                     isActive
@@ -62,7 +64,7 @@ function Navigation() {
                     )}
                   />
                   {label}
-                </button>
+                </Link>
               );
             })}
           </div>
