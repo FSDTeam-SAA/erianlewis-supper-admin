@@ -1,42 +1,50 @@
-"use client"
+"use client";
 
-import React, { useState } from 'react'
-import { RefreshCw, Trash2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import React, { useState } from "react";
 
-// ── Mock Data ────────────────────────────────────────────────────────────────
-const listingsByIsland = [
-  { name: 'Jamaica',       count: 3, label: 'listings' },
-  { name: 'Barbados',      count: 3, label: 'listings' },
-  { name: 'Bahamas',       count: 5, label: 'listings' },
-  { name: 'Cayman Islands',count: 2, label: 'listings' },
-]
+interface SubscriptionItem {
+  _id: string;
+  count: number;
+  planName: string;
+  planTitle: string;
+  price: number;
+  billingCycle: string;
+}
 
-const accountsByIsland = [
-  { name: 'Jamaica',               count: 6,  label: 'Accounts' },
-  { name: 'Barbados',              count: 6,  label: 'Accounts' },
-  { name: 'Bahamas',               count: 8,  label: 'Accounts' },
-  { name: 'Cayman Islands',        count: 6,  label: 'Accounts' },
-  { name: 'Bahamas',               count: 12, label: 'Accounts' },
-  { name: 'Bermuda',               count: 8,  label: 'Accounts' },
-  { name: 'British Virgin Islands',count: 15, label: 'Accounts' },
-  { name: 'Jersey',                count: 5,  label: 'Accounts' },
-  { name: 'Guernsey',              count: 7,  label: 'Accounts' },
-  { name: 'Isle of Man',           count: 10, label: 'Accounts' },
-  { name: 'Singapore',             count: 20, label: 'Accounts' },
-  { name: 'Hong Kong',             count: 18, label: 'Accounts' },
-  { name: 'Switzerland',           count: 25, label: 'Accounts' },
-]
+interface IslandItem {
+  _id: string;
+  count: number;
+  islandName: string;
+}
 
-function AbandonedSignups() {
-  const [listingsExpanded, setListingsExpanded] = useState(false)   // ← new
-  const [accountsExpanded, setAccountsExpanded] = useState(false)   // ← new
+interface Props {
+  subscriptionBreakdown?: SubscriptionItem[];
+  listingsByIsland?: IslandItem[];
+  accountsByIsland?: IslandItem[];
+}
+
+const DOT_COLORS = [
+  "bg-gray-400",
+  "bg-blue-500",
+  "bg-emerald-500",
+  "bg-purple-500",
+  "bg-red-400",
+];
+
+function AbandonedSignups({ subscriptionBreakdown, listingsByIsland, accountsByIsland }: Props) {
+  const [listingsExpanded, setListingsExpanded] = useState(false);
+  const [accountsExpanded, setAccountsExpanded] = useState(false);
+
+  const totalListings = listingsByIsland?.reduce((s, i) => s + i.count, 0) ?? 0;
+  const totalAccounts = accountsByIsland?.reduce((s, i) => s + i.count, 0) ?? 0;
+  const uniqueListingIslands = new Set(listingsByIsland?.map((i) => i.islandName)).size;
+  const uniqueAccountIslands = new Set(accountsByIsland?.map((i) => i.islandName)).size;
 
   return (
     <div className="bg-gray-50 space-y-4 my-8">
 
-      {/* ── Abandoned Signups Card ── */}
-      <div className="bg-[#FFFFFF]">
+      {/* Abandoned Signups Card */}
+      {/* <div className="bg-[#FFFFFF]">
         <div className="p-6">
           <div className="flex items-start justify-between mb-4">
             <div>
@@ -67,32 +75,37 @@ function AbandonedSignups() {
             <span className="text-[24px] font-medium text-black">6</span>
           </div>
         </div>
-      </div>
+      </div> */}
 
-      {/* ── Subscription Breakdown Card ── */}
+      {/* Subscription Breakdown Card */}
       <div className="bg-[#FFFFFF]">
         <div className="p-6">
-          <h2 className="text-[24px] font-medium text-black leading-[100%]">Subscription Breakdown</h2>
-
-          <div className="flex items-center justify-between py-2 border-b border-gray-100">
-            <div className="flex items-center gap-3">
-              <span className="w-4 h-4 rounded-full bg-gray-400 inline-block" />
-              <span className="text-lg font-medium text-gray-800">Free</span>
-            </div>
-            <span className="text-[24px] font-medium text-black">28</span>
-          </div>
-
-          <div className="flex items-center justify-between py-2">
-            <div className="flex items-center gap-3">
-              <span className="w-4 h-4 rounded-full bg-blue-500 inline-block" />
-              <span className="text-lg font-medium text-gray-800">Free</span>
-            </div>
-            <span className="text-[24px] font-medium text-black">1</span>
-          </div>
+          <h2 className="text-[24px] font-medium text-black leading-[100%] mb-3">
+            Subscription Breakdown
+          </h2>
+          {subscriptionBreakdown && subscriptionBreakdown.length > 0 ? (
+            subscriptionBreakdown.map((item, idx) => (
+              <div
+                key={item._id}
+                className={`flex items-center justify-between py-2 ${
+                  idx < subscriptionBreakdown.length - 1 ? "border-b border-gray-100" : ""
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className={`w-4 h-4 rounded-full inline-block ${DOT_COLORS[idx % DOT_COLORS.length]}`} />
+                  <span className="text-lg font-medium text-gray-800">{item.planTitle}</span>
+                  <span className="text-sm text-gray-400">${item.price}/{item.billingCycle}</span>
+                </div>
+                <span className="text-[24px] font-medium text-black">{item.count}</span>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-gray-400">No subscription data available.</p>
+          )}
         </div>
       </div>
 
-      {/* ── Bottom Two Cards ── */}
+      {/* Bottom Two Cards */}
       <div className="grid grid-cols-2 gap-4">
 
         {/* Listings by Island */}
@@ -101,23 +114,23 @@ function AbandonedSignups() {
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-[24px] font-medium text-black leading-[100%]">Listings by Island</h2>
-                <p className="text-base text-[#9A9A9A] mt-3">8 total across 4 islands</p>
+                <p className="text-base text-[#9A9A9A] mt-3">
+                  {totalListings} total across {uniqueListingIslands} island{uniqueListingIslands !== 1 ? "s" : ""}
+                </p>
               </div>
               <button
-                onClick={() => setListingsExpanded(prev => !prev)}
+                onClick={() => setListingsExpanded((prev) => !prev)}
                 className="text-[24px] font-medium text-red-500 hover:text-red-600 leading-[100%]"
               >
-                {listingsExpanded ? 'Collapse' : 'Expand'}
+                {listingsExpanded ? "Collapse" : "Expand"}
               </button>
             </div>
-
-            {/* Expanded list */}
             {listingsExpanded && (
               <div className="mt-4 space-y-2">
-                {listingsByIsland.map((item, idx) => (
+                {listingsByIsland?.map((item, idx) => (
                   <div key={idx} className="flex items-center justify-between py-1 border-b border-gray-50">
-                    <span className="text-sm text-gray-800">{item.name}</span>
-                    <span className="text-sm text-gray-400">{item.count} {item.label}</span>
+                    <span className="text-sm text-gray-800">{item.islandName}</span>
+                    <span className="text-sm text-gray-400">{item.count} listings</span>
                   </div>
                 ))}
               </div>
@@ -131,23 +144,23 @@ function AbandonedSignups() {
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-[24px] font-medium text-black leading-[100%]">Accounts by Island</h2>
-                <p className="text-base text-[#9A9A9A] mt-3">21 total across 13 islands</p>
+                <p className="text-base text-[#9A9A9A] mt-3">
+                  {totalAccounts} total across {uniqueAccountIslands} island{uniqueAccountIslands !== 1 ? "s" : ""}
+                </p>
               </div>
               <button
-                onClick={() => setAccountsExpanded(prev => !prev)}
+                onClick={() => setAccountsExpanded((prev) => !prev)}
                 className="text-[24px] font-medium text-red-500 hover:text-red-600 leading-[100%]"
               >
-                {accountsExpanded ? 'Collapse' : 'Expand'}
+                {accountsExpanded ? "Collapse" : "Expand"}
               </button>
             </div>
-
-            {/* Expanded list */}
             {accountsExpanded && (
               <div className="mt-4 space-y-2">
-                {accountsByIsland.map((item, idx) => (
+                {accountsByIsland?.map((item, idx) => (
                   <div key={idx} className="flex items-center justify-between py-1 border-b border-gray-50">
-                    <span className="text-sm text-gray-800">{item.name}</span>
-                    <span className="text-sm text-gray-400">{item.count} {item.label}</span>
+                    <span className="text-sm text-gray-800">{item.islandName}</span>
+                    <span className="text-sm text-gray-400">{item.count} Accounts</span>
                   </div>
                 ))}
               </div>
@@ -157,7 +170,7 @@ function AbandonedSignups() {
 
       </div>
     </div>
-  )
+  );
 }
 
-export default AbandonedSignups
+export default AbandonedSignups;

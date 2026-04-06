@@ -2,7 +2,6 @@
 
 import React, { useRef, useState } from "react";
 import {
-  Search,
   Activity,
   Map,
   Users,
@@ -14,7 +13,6 @@ import {
   FileText,
   MessageSquare,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -36,22 +34,8 @@ function Navigation() {
 
   return (
     <nav>
-      {/* Search Section (FULL WIDTH BORDER) */}
-      <div className="bg-white border-b-2 border-[#E5E7EB]">
-        <div className="container mx-auto px-2 py-6">
-          <div className="relative max-w-xl">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <Input
-              type="text"
-              placeholder="Search superadmin section ... ( e.g., Accounts Islands, Legal)"
-              className="pl-9 pr-4 h-[48px] text-sm text-gray-500 border-2 border-[#ACACAC] rounded-md bg-white placeholder:text-gray-400 focus-visible:ring-1 focus-visible:ring-red-400 focus-visible:border-red-400 w-full"
-            />
-          </div>
-        </div>
-      </div>
-
       {/* Nav Tabs (FULL WIDTH BORDER) */}
-      <div className="bg-white border-b-2 border-[#E5E7EB]">
+      <div className="bg-white border-b-2 border-t border-[#E5E7EB] mt-5">
         <div className="container mx-auto px-2 flex items-center">
           <div
             ref={scrollRef}

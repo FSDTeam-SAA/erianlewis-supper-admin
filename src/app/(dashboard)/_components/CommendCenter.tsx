@@ -1,96 +1,99 @@
 import React from "react";
-import {
-  Users,
-  Building2,
-  TrendingUp,
-  DollarSign,
-  AlertTriangle,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Users, Building2, TrendingUp, DollarSign, AlertTriangle } from "lucide-react";
 
-// ── Data ────────────────────────────────────────────────────────────────────
-const dataSource = [
-  { label: "Accounts", value: "33", sub: null },
-  { label: "Listings", value: "8", sub: "7 active" },
-  { label: "Plans", value: "33", sub: null },
-  { label: "Location", value: "33", sub: null },
-  { label: "Db Configure", value: "Yes", sub: null },
-];
+interface Summary {
+  totalAccounts: number;
+  totalListings: number;
+  totalPlans: number;
+  totalLocations: number;
+  totalSecurityFlags: number;
+  unresolvedSecurityFlags: number;
+  activeSubscriptions: number;
+  estimatedMonthlyRevenue: number;
+}
 
-const statCards = [
-  {
-    icon: Users,
-    iconBg: "bg-blue-500",
-    value: "33",
-    label: "Total Accounts",
-    sub: "6 verified",
-  },
-  {
-    icon: Building2,
-    iconBg: "bg-emerald-500",
-    value: "8",
-    label: "Total Listing",
-    sub: "7 active",
-  },
-  {
-    icon: TrendingUp,
-    iconBg: "bg-purple-500",
-    value: "29",
-    label: "Active Subscription",
-    sub: null,
-  },
-  {
-    icon: DollarSign,
-    iconBg: "bg-emerald-500",
-    value: "$9.99",
-    label: "Monthly Revuenue",
-    sub: "Estimated",
-  },
-  {
-    icon: AlertTriangle,
-    iconBg: "bg-red-500",
-    value: "0",
-    label: "Security Flag",
-    sub: "unresolved",
-  },
-];
+interface Listings {
+  total: number;
+  active: number;
+}
 
-// ── Component ────────────────────────────────────────────────────────────────
-function CommendCenter() {
+interface Props {
+  summary?: Summary;
+  listings?: Listings;
+}
+
+function CommendCenter({ summary, listings }: Props) {
+  const dataSource = [
+    { label: "Accounts", value: summary?.totalAccounts ?? "—", sub: null },
+    { label: "Listings", value: summary?.totalListings ?? "—", sub: listings ? `${listings.active} active` : null },
+    { label: "Plans", value: summary?.totalPlans ?? "—", sub: null },
+    { label: "Location", value: summary?.totalLocations ?? "—", sub: null },
+    { label: "Db Configure", value: "Yes", sub: null },
+  ];
+
+  const statCards = [
+    {
+      icon: Users,
+      iconBg: "bg-blue-500",
+      value: summary?.totalAccounts ?? "—",
+      label: "Total Accounts",
+      sub: null,
+    },
+    {
+      icon: Building2,
+      iconBg: "bg-emerald-500",
+      value: summary?.totalListings ?? "—",
+      label: "Total Listing",
+      sub: listings ? `${listings.active} active` : null,
+    },
+    {
+      icon: TrendingUp,
+      iconBg: "bg-purple-500",
+      value: summary?.activeSubscriptions ?? "—",
+      label: "Active Subscription",
+      sub: null,
+    },
+    {
+      icon: DollarSign,
+      iconBg: "bg-emerald-500",
+      value: summary ? `$${summary.estimatedMonthlyRevenue.toFixed(2)}` : "—",
+      label: "Monthly Revenue",
+      sub: "Estimated",
+    },
+    {
+      icon: AlertTriangle,
+      iconBg: "bg-red-500",
+      value: summary?.unresolvedSecurityFlags ?? "—",
+      label: "Security Flag",
+      sub: "unresolved",
+    },
+  ];
+
   return (
     <div className="bg-gray-50">
-      {/* ── Page Header ── */}
+      {/* Page Header */}
       <div className="flex items-start justify-between py-6">
         <div>
-          <h1 className="text-2xl font-medium text-[#000000]">
-            Commend Center
-          </h1>
+          <h1 className="text-2xl font-medium text-[#000000]">Commend Center</h1>
           <p className="text-base text-[#9A9A9A] mt-3">
-            Refresh Updates the dashboard. It also Updates When you run actions
-            in Superadmin.
+            Refresh Updates the dashboard. It also Updates When you run actions in Superadmin.
           </p>
         </div>
-        <Button className="bg-gray-900 hover:bg-gray-800 text-white px-6 h-[50px] rounded-md text-base font-semibold">
+        {/* <Button className="bg-gray-900 hover:bg-gray-800 text-white px-6 h-[50px] rounded-md text-base font-semibold">
           Search
-        </Button>
+        </Button> */}
       </div>
 
-      {/* ── Data Source Card ── */}
+      {/* Data Source Card */}
       <div className="mb-6 border-gray-200 bg-white">
         <div className="p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-1">
-            Data source
-          </h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Data source</h2>
           <p className="text-sm text-gray-400 mb-4">Production</p>
-
           <div className="grid grid-cols-5 gap-4">
             {dataSource.map(({ label, value, sub }) => (
-              <div
-                key={label}
-                className="bg-gray-50 border border-gray-100 rounded-lg p-4"
-              >
+              <div key={label} className="bg-gray-50 border border-gray-100 rounded-lg p-4">
                 <p className="text-xs text-gray-500 mb-1">{label}</p>
-                <p className="text-xl font-bold text-gray-900">{value}</p>
+                <p className="text-xl font-bold text-gray-900">{String(value)}</p>
                 {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
               </div>
             ))}
@@ -98,33 +101,22 @@ function CommendCenter() {
         </div>
       </div>
 
-      {/* ── Stat Cards Grid ── */}
-      <div className="">
-        <div className="">
-          <div className="grid grid-cols-3 gap-6">
-            {statCards.map(({ icon: Icon, iconBg, value, label, sub }) => (
-              <div key={label} className="flex flex-col gap-3 bg-[#FFFFFF]">
-                <div className="p-6">
-                  {/* Icon Badge */}
-                  <div
-                    className={`w-10 h-10 rounded-[4px] flex items-center justify-center ${iconBg}`}
-                  >
-                    <Icon className="w-5 h-5 text-white" />
-                  </div>
-
-                  {/* Value */}
-                  <p className="text-3xl font-bold text-gray-900 my-2">{value}</p>
-
-                  {/* Label + Sub */}
-                  <div>
-                    <p className="text-sm text-gray-500 my-1">{label}</p>
-                    {sub && <p className="text-sm text-gray-400">{sub}</p>}
-                  </div>
-                </div>
+      {/* Stat Cards Grid */}
+      <div className="grid grid-cols-3 gap-6">
+        {statCards.map(({ icon: Icon, iconBg, value, label, sub }) => (
+          <div key={label} className="flex flex-col gap-3 bg-[#FFFFFF]">
+            <div className="p-6">
+              <div className={`w-10 h-10 rounded-[4px] flex items-center justify-center ${iconBg}`}>
+                <Icon className="w-5 h-5 text-white" />
               </div>
-            ))}
+              <p className="text-3xl font-bold text-gray-900 my-2">{String(value)}</p>
+              <div>
+                <p className="text-sm text-gray-500 my-1">{label}</p>
+                {sub && <p className="text-sm text-gray-400">{sub}</p>}
+              </div>
+            </div>
           </div>
-        </div>
+        ))}
       </div>
     </div>
   );

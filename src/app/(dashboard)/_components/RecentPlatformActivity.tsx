@@ -2,17 +2,36 @@
 
 import React, { useRef } from "react";
 
-const activities = [
-  { action: "account deleted", actor: "user", source: "System", time: "1/8/2026, 10:33:31 PM" },
-  { action: "account deleted", actor: "user", source: "System", time: "1/8/2026, 10:33:31 PM" },
-  { action: "legal document updated", actor: "user", source: "System", time: "1/8/2026, 10:33:31 PM" },
-  { action: "account deleted", actor: "user", source: "System", time: "1/8/2026, 10:33:31 PM" },
-  { action: "account created", actor: "user", source: "System", time: "1/8/2026, 10:31:15 PM" },
-  { action: "password changed", actor: "user", source: "System", time: "1/8/2026, 10:35:45 PM" },
-  { action: "legal document updated", actor: "user", source: "System", time: "1/8/2026, 10:33:31 PM" },
-];
+interface Actor {
+  userId: { _id: string; email: string };
+  email: string;
+  role: string;
+}
 
-function RecentPlatformActivity() {
+interface Entity {
+  type: string;
+  id: string;
+  label: string;
+}
+
+interface ActivityItem {
+  _id: string;
+  action: string;
+  actor: Actor;
+  entity: Entity;
+  details: Record<string, string>;
+  createdAt: string;
+}
+
+interface Props {
+  recentActivity?: ActivityItem[];
+}
+
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleString();
+}
+
+function RecentPlatformActivity({ recentActivity }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   return (
@@ -20,41 +39,35 @@ function RecentPlatformActivity() {
       <div className="bg-white">
         <div className="p-0">
           <div className="flex">
-            {/* Main Content */}
             <div className="flex-1 overflow-hidden">
-              {/* Title */}
               <div className="px-6 pt-5 pb-3">
                 <h2 className="text-[24px] font-medium text-black leading-[100%]">
                   Recent Platform Activity
                 </h2>
               </div>
 
-              {/* Scrollable List */}
               <div
                 ref={scrollRef}
                 className="overflow-y-auto max-h-[420px] divide-y divide-gray-100 pr-2 custom-scrollbar"
               >
-                {activities.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between px-6 py-4"
-                  >
-                    {/* Left */}
-                    <div>
-                      <p className="text-sm font-semibold text-gray-800">
-                        {item.action}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {item.actor} · {item.source}
+                {recentActivity && recentActivity.length > 0 ? (
+                  recentActivity.map((item) => (
+                    <div key={item._id} className="flex items-center justify-between px-6 py-4">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{item.action.replace(/_/g, " ")}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {item.actor.email} · {item.actor.role}
+                          {item.details?.userName ? ` · ${item.details.userName}` : ""}
+                        </p>
+                      </div>
+                      <p className="text-sm text-gray-400 whitespace-nowrap ml-8">
+                        {formatDate(item.createdAt)}
                       </p>
                     </div>
-
-                    {/* Right */}
-                    <p className="text-sm text-gray-400 whitespace-nowrap ml-8">
-                      {item.time}
-                    </p>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="px-6 py-4 text-sm text-gray-400">No recent activity.</p>
+                )}
               </div>
             </div>
           </div>

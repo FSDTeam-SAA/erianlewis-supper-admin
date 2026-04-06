@@ -5,13 +5,15 @@ import CredentialsProvider from "next-auth/providers/credentials";
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
+
   session: {
     strategy: "jwt",
     maxAge: 7 * 24 * 60 * 60, // 7 days
   },
+
   cookies: {
     sessionToken: {
-      name: "next-auth.session-token-delivaryboy", // 🔹 আলাদা কুকি নাম
+      name: "next-auth.session-token-delivaryboy",
       options: {
         httpOnly: true,
         sameSite: "lax",
@@ -20,13 +22,24 @@ export const authOptions: NextAuthOptions = {
       },
     },
   },
+
   providers: [
     CredentialsProvider({
       name: "Credentials",
+
       credentials: {
-        email: { label: "Email", type: "text", placeholder: "email" },
-        password: { label: "Password", type: "password", placeholder: "password" },
+        email: {
+          label: "Email",
+          type: "text",
+          placeholder: "email",
+        },
+        password: {
+          label: "Password",
+          type: "password",
+          placeholder: "password",
+        },
       },
+
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Please enter your email and password");
@@ -34,7 +47,7 @@ export const authOptions: NextAuthOptions = {
 
         try {
           const res = await fetch(
-            `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/user/signin`,
+            `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/auth/login`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -48,32 +61,41 @@ export const authOptions: NextAuthOptions = {
           const response = await res.json();
           console.log("Backend login response:", response);
 
-          if (!res.ok || !response?.success) {
+          // ✅ FIX: success → status
+          if (!res.ok || !response?.status) {
             throw new Error(response?.message || "Login failed");
           }
 
-          const user = response.data?.user || response.data;
-          if (!user) throw new Error("User data not found");
+          // ✅ Correct data extraction
+          const user = response?.data?.user;
+          const accessToken = response?.data?.accessToken;
 
-          if (user.role !== "deliveryboy") {
-            throw new Error("Only Seller users can access this dashboard");
+          if (!user) {
+            throw new Error("User data not found");
           }
 
-          const accessToken = response.data?.accessToken || response.accessToken || null;
+          // ✅ OPTIONAL: role check (enable if needed)
+          // if (user.role !== "USER") {
+          //   throw new Error("Unauthorized user");
+          // }
 
           return {
             id: user._id,
-            name: user.name,
+            name: user.name || "User",
             email: user.email,
             phoneNumber: user.phoneNumber || null,
             role: user.role,
             profileImage: user.profileImage || null,
-            accessToken,
+            accessToken: accessToken || null,
           };
         } catch (error) {
           console.error("Authentication error:", error);
+
           const message =
-            error instanceof Error ? error.message : "Authentication failed";
+            error instanceof Error
+              ? error.message
+              : "Authentication failed";
+
           throw new Error(message);
         }
       },
