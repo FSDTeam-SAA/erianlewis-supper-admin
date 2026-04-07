@@ -3,11 +3,11 @@
 import React, { useState } from "react";
 
 interface DeleteListingModalProps {
-  listingId: number | null;
+  listingId: string | number | null;
   listingName?: string;
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (id: number) => void;
+  onConfirm: (id: string | number) => void;
 }
 
 export function DeleteListingModal({
@@ -39,13 +39,12 @@ export function DeleteListingModal({
       >
         {/* Title */}
         <h2 className="text-lg font-bold text-gray-900 mb-2">
-          Delete account?
+          Delete listing?
         </h2>
 
         {/* Description */}
         <p className="text-sm text-gray-500 mb-6 leading-relaxed">
-          The permanently deletes the user and any owned listings. This cannot
-          be undone.
+          This permanently deletes the listing. This cannot be undone.
         </p>
 
         {/* Buttons */}
@@ -65,7 +64,7 @@ export function DeleteListingModal({
             {loading && (
               <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
             )}
-            Delete Account
+            Delete Listing
           </button>
         </div>
       </div>

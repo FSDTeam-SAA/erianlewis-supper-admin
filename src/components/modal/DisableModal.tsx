@@ -3,10 +3,10 @@
 import React, { useState } from "react";
 
 interface DisableListingModalProps {
-  listingId: number | null;
+  listingId: string | number | null;
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (id: number, reason: string) => void;
+  onConfirm: (id: string | number, reason: string) => void;
 }
 
 export function DisableListingModal({
