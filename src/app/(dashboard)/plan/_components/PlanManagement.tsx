@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Building2,
   Tag,
-  ShieldCheck,
   Plus,
   Pencil,
   Trash2,
@@ -15,10 +14,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
+import { toast } from "sonner";
+import { DeleteListingModal } from "@/components/modal/DeleteModal";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Plan {
-  id: number;
+  id: string;
   key: string;
   name: string;
   monthlyPrice: number;
@@ -27,52 +30,10 @@ interface Plan {
   displayOrder: number;
   trialDays: number;
   promoMessage: string;
+  displayFeatures: string[];
   freeTier: boolean;
   active: boolean;
 }
-
-// ── Initial mock plans ────────────────────────────────────────────────────────
-const initialPlans: Plan[] = [
-  {
-    id: 1,
-    key: "free",
-    name: "Free Plan",
-    monthlyPrice: 0,
-    yearlyPrice: 0,
-    maxProperties: 3,
-    displayOrder: 0,
-    trialDays: 0,
-    promoMessage: "",
-    freeTier: true,
-    active: true,
-  },
-  {
-    id: 2,
-    key: "basic",
-    name: "Basic Plan",
-    monthlyPrice: 9.99,
-    yearlyPrice: 99,
-    maxProperties: 10,
-    displayOrder: 1,
-    trialDays: 0,
-    promoMessage: "",
-    freeTier: false,
-    active: true,
-  },
-  {
-    id: 3,
-    key: "premium",
-    name: "Premium Plan",
-    monthlyPrice: 9.99,
-    yearlyPrice: 99,
-    maxProperties: null,
-    displayOrder: 2,
-    trialDays: 0,
-    promoMessage: "",
-    freeTier: false,
-    active: true,
-  },
-];
 
 // ── Empty form state ──────────────────────────────────────────────────────────
 const emptyForm = {
@@ -84,11 +45,13 @@ const emptyForm = {
   displayOrder: "0",
   trialDays: "0",
   promoMessage: "",
+  features: [] as string[],
+  featureInput: "",
   freeTier: false,
   active: false,
 };
 
-type Tab = "plans" | "access" | "discount";
+type Tab = "plans";
 
 // ── Plan Card ─────────────────────────────────────────────────────────────────
 function PlanCard({
@@ -98,10 +61,10 @@ function PlanCard({
 }: {
   plan: Plan;
   onEdit: (p: Plan) => void;
-  onDelete: (id: number) => void;
+  onDelete: (p: Plan) => void;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm h-full flex flex-col">
       {/* Red header */}
       <div className="bg-[#CC1F1F] px-5 py-4">
         <p className="text-white text-sm font-medium opacity-90">{plan.name}</p>
@@ -112,7 +75,7 @@ function PlanCard({
       </div>
 
       {/* Body */}
-      <div className="px-5 py-4">
+      <div className="px-5 py-4 flex flex-col flex-1">
         <div className="flex items-center gap-2 mb-3">
           <Building2 className="w-4 h-4 text-gray-400" />
           <span className="text-sm text-gray-700">
@@ -125,13 +88,27 @@ function PlanCard({
           <span className="font-medium text-gray-700">Key :</span>
           <span className="ml-1">{plan.key}</span>
         </div>
-        <div className="mb-4">
+        <div className="mb-4 min-h-[92px]">
           <p className="text-sm font-bold text-gray-800 mb-1">Features:</p>
-          <p className="text-sm text-gray-500">No Features set</p>
+          {plan.displayFeatures?.length ? (
+            <div className="space-y-1.5">
+              {plan.displayFeatures.map((feature, idx) => (
+                <div
+                  key={`${plan.id}-feature-${idx}`}
+                  className="inline-flex items-center gap-2  px-2.5 py-1 mr-1.5"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#CC1F1F]" />
+                  <span className="text-sm text-gray-600 leading-5">{feature}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">No Features set</p>
+          )}
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mt-auto">
           <button
             onClick={() => onEdit(plan)}
             className="flex-1 flex items-center justify-center gap-2 bg-[#1D4ED8] hover:bg-[#1e40af] text-white text-sm font-medium py-2 rounded-lg transition-colors"
@@ -140,7 +117,7 @@ function PlanCard({
             Edit
           </button>
           <button
-            onClick={() => onDelete(plan.id)}
+            onClick={() => onDelete(plan)}
             className="w-10 h-9 flex items-center justify-center bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 rounded-lg border border-red-100 transition-colors"
           >
             <Trash2 className="w-4 h-4" />
@@ -209,10 +186,15 @@ function PlanModal({
             Monthly Price ($)
           </label>
           <Input
+            type="text"
+            inputMode="decimal"
             value={form.monthlyPrice}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, monthlyPrice: e.target.value }))
-            }
+            onChange={(e) => {
+              const value = e.target.value;
+              if (/^\d*\.?\d*$/.test(value)) {
+                setForm((f) => ({ ...f, monthlyPrice: value }));
+              }
+            }}
             className="h-10 text-sm border-gray-200"
           />
         </div>
@@ -223,10 +205,15 @@ function PlanModal({
             Yearly Price ($)
           </label>
           <Input
+            type="text"
+            inputMode="decimal"
             value={form.yearlyPrice}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, yearlyPrice: e.target.value }))
-            }
+            onChange={(e) => {
+              const value = e.target.value;
+              if (/^\d*\.?\d*$/.test(value)) {
+                setForm((f) => ({ ...f, yearlyPrice: value }));
+              }
+            }}
             className="h-10 text-sm border-gray-200"
           />
           <p className="text-xs text-gray-400 mt-1">
@@ -277,19 +264,70 @@ function PlanModal({
           </p>
         </div>
 
-        {/* Promo Message */}
+        {/* Features */}
         <div>
-          <label className="block text-sm text-gray-600 mb-1">
-            Promo Message (optional)
-          </label>
-          <Input
-            placeholder="eg: free until 14 feb"
-            value={form.promoMessage}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, promoMessage: e.target.value }))
-            }
-            className="h-10 text-sm border-gray-200"
-          />
+          <label className="block text-sm text-gray-600 mb-1">Features</label>
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="Type feature and click +"
+              value={form.featureInput}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, featureInput: e.target.value }))
+              }
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const feature = form.featureInput.trim();
+                  if (!feature) return;
+                  setForm((f) =>
+                    f.features.includes(feature)
+                      ? { ...f, featureInput: "" }
+                      : { ...f, features: [...f.features, feature], featureInput: "" }
+                  );
+                }
+              }}
+              className="h-10 text-sm border-gray-200"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const feature = form.featureInput.trim();
+                if (!feature) return;
+                setForm((f) =>
+                  f.features.includes(feature)
+                    ? { ...f, featureInput: "" }
+                    : { ...f, features: [...f.features, feature], featureInput: "" }
+                );
+              }}
+              className="h-10 w-10 rounded-md border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+          {!!form.features.length && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {form.features.map((feature, idx) => (
+                <div
+                  key={`${feature}-${idx}`}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-gray-50 border border-gray-200 px-2 py-1"
+                >
+                  <span className="text-xs text-gray-700">{feature}</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        features: f.features.filter((item) => item !== feature),
+                      }))
+                    }
+                    className="text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -354,12 +392,153 @@ function PlanModal({
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function PlanManagement() {
+  const { data: session } = useSession();
+  const token = session?.user?.accessToken;
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>("plans");
-  const [plans, setPlans] = useState<Plan[]>(initialPlans);
-
-  // Modal state: null = closed, "create" = create mode, number = edit mode (plan id)
-  const [modalMode, setModalMode] = useState<null | "create" | number>(null);
+  const [modalMode, setModalMode] = useState<null | "create" | string>(null);
   const [form, setForm] = useState(emptyForm);
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    id: string | null;
+    name: string;
+  }>({ isOpen: false, id: null, name: "" });
+
+  const { data: getPlan, refetch } = useQuery({
+    queryKey: ["plan"],
+    queryFn: async () => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/plans`);
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to fetch plans");
+      }
+      return json.data as {
+        items: Array<{
+          _id: string;
+          title: string;
+          name: string;
+          price: number;
+          billingCycle: "free" | "monthly" | "yearly";
+          maxProperties: number | null;
+          displayFeatures?: string[];
+          status: "active" | "inactive";
+        }>;
+      };
+    },
+  });
+
+  const plans: Plan[] = useMemo(() => {
+    return (getPlan?.items || []).map((item, idx) => ({
+      id: item._id,
+      key: item.name || "",
+      name: item.title || item.name || "N/A",
+      monthlyPrice: item.billingCycle === "monthly" || item.billingCycle === "free" ? Number(item.price || 0) : 0,
+      yearlyPrice: item.billingCycle === "yearly" ? Number(item.price || 0) : 0,
+      maxProperties: item.maxProperties ?? null,
+      displayOrder: idx,
+      trialDays: 0,
+      promoMessage: "",
+      displayFeatures: item.displayFeatures || [],
+      freeTier: item.billingCycle === "free",
+      active: item.status === "active",
+    }));
+  }, [getPlan?.items]);
+
+  const buildPayloadFromForm = () => {
+    const maxProps = form.maxProperties.trim() === "" ? null : Number(form.maxProperties);
+    return {
+      title: form.name,
+      name: form.key,
+      price: Number(form.monthlyPrice || 0),
+      billingCycle: form.freeTier ? "free" : "monthly",
+      displayFeatures: form.features,
+      limits: {
+        maxReturnOrders: Number(form.trialDays || 0),
+      },
+      numberOfPackages: maxProps ?? 0,
+      entitlements: {
+        rushService: !!form.active,
+        freePhysicalReturnLabel: !!form.freeTier,
+        freePhysicalReceipt: !!form.freeTier,
+      },
+      targetRoles: ["LANDLORD", "AGENT"],
+      maxProperties: maxProps,
+      status: form.active ? "active" : "inactive",
+    };
+  };
+
+  const addPlanMutaion = useMutation({
+    mutationFn: async () => {
+      const payload = buildPayloadFromForm();
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/plans`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to create plan");
+      }
+      return json;
+    },
+    onSuccess: () => {
+      toast.success("Plan created successfully");
+      queryClient.invalidateQueries({ queryKey: ["plan"] });
+      setModalMode(null);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const editPlanMutaion = useMutation({
+    mutationFn: async (id: string) => {
+      const payload = buildPayloadFromForm();
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/plans/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to update plan");
+      }
+      return json;
+    },
+    onSuccess: () => {
+      toast.success("Plan updated successfully");
+      queryClient.invalidateQueries({ queryKey: ["plan"] });
+      setModalMode(null);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const deleteplanMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/plans/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to delete plan");
+      }
+      return json;
+    },
+    onSuccess: () => {
+      toast.success("Plan deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["plan"] });
+      setDeleteModal({ isOpen: false, id: null, name: "" });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const openCreate = () => {
     setForm(emptyForm);
@@ -375,7 +554,9 @@ export default function PlanManagement() {
       maxProperties: plan.maxProperties === null ? "" : String(plan.maxProperties),
       displayOrder: String(plan.displayOrder),
       trialDays: String(plan.trialDays),
-      promoMessage: plan.promoMessage,
+      promoMessage: plan.displayFeatures?.join(", ") || plan.promoMessage,
+      features: plan.displayFeatures || [],
+      featureInput: "",
       freeTier: plan.freeTier,
       active: plan.active,
     });
@@ -383,63 +564,25 @@ export default function PlanManagement() {
   };
 
   const handleSave = () => {
-    const maxProps =
-      form.maxProperties.trim() === "" ? null : Number(form.maxProperties);
-
     if (modalMode === "create") {
-      const newPlan: Plan = {
-        id: Date.now(),
-        key: form.key,
-        name: form.name,
-        monthlyPrice: Number(form.monthlyPrice),
-        yearlyPrice: Number(form.yearlyPrice),
-        maxProperties: maxProps,
-        displayOrder: Number(form.displayOrder),
-        trialDays: Number(form.trialDays),
-        promoMessage: form.promoMessage,
-        freeTier: form.freeTier,
-        active: form.active,
-      };
-      setPlans((prev) => [...prev, newPlan]);
+      addPlanMutaion.mutate();
     } else {
-      setPlans((prev) =>
-        prev.map((p) =>
-          p.id === modalMode
-            ? {
-                ...p,
-                key: form.key,
-                name: form.name,
-                monthlyPrice: Number(form.monthlyPrice),
-                yearlyPrice: Number(form.yearlyPrice),
-                maxProperties: maxProps,
-                displayOrder: Number(form.displayOrder),
-                trialDays: Number(form.trialDays),
-                promoMessage: form.promoMessage,
-                freeTier: form.freeTier,
-                active: form.active,
-              }
-            : p
-        )
-      );
+      editPlanMutaion.mutate(String(modalMode));
     }
-    setModalMode(null);
   };
 
-  const handleDelete = (id: number) => {
-    setPlans((prev) => prev.filter((p) => p.id !== id));
+  const handleDelete = (p: Plan) => {
+    setDeleteModal({ isOpen: true, id: p.id, name: p.name });
   };
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: "plans", label: "Plans", icon: <Tag className="w-4 h-4" /> },
-    { id: "access", label: "Access", icon: <ShieldCheck className="w-4 h-4" /> },
-    { id: "discount", label: "Discount Codes", icon: <Tag className="w-4 h-4" /> },
   ];
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* ── Tab Bar ── */}
       <div className="bg-white border-b border-gray-200 px-6">
-        <div className="flex items-center gap-2 py-3">
+        <div className="flex items-center gap-2 py-3 container mx-auto pl-3">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -470,7 +613,7 @@ export default function PlanManagement() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setPlans(initialPlans)}
+              onClick={() => refetch()}
               className="flex items-center gap-1.5 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <RefreshCw className="w-4 h-4" />
@@ -515,18 +658,15 @@ export default function PlanManagement() {
           </div>
         )}
 
-        {activeTab === "access" && (
-          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
-            Access management coming soon.
-          </div>
-        )}
-
-        {activeTab === "discount" && (
-          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
-            Discount Codes management coming soon.
-          </div>
-        )}
       </div>
+
+      <DeleteListingModal
+        isOpen={deleteModal.isOpen}
+        listingId={deleteModal.id}
+        listingName={deleteModal.name}
+        onClose={() => setDeleteModal({ isOpen: false, id: null, name: "" })}
+        onConfirm={(id) => deleteplanMutation.mutate(String(id))}
+      />
     </div>
   );
 }
