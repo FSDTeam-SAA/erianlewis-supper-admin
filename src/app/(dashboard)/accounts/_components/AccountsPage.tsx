@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,34 +13,64 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AccoutntModal } from "@/app/modal/AccoutntModal";
+import { useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
 interface Account {
-  id: number;
+  _id: string;
+  firstName: string;
+  lastName: string;
   name: string;
   email: string;
   island: string;
   role: string;
   plan: string;
-  status: "active" | "onboarding" | "suspended";
+  status: "active" | "pending_payment" | "suspended";
   listings: number;
 }
 
-const mockAccounts: Account[] = Array.from({ length: 9 }, (_, i) => ({
-  id: i + 1,
-  name: "Kondaricabera Cabera",
-  email: "kondoricabrerac@gmail.com",
-  island: "N/A",
-  role: "N/A",
-  plan: "Free",
-  status: i === 0 || i === 5 ? "onboarding" : "active",
-  listings: 0,
-}));
+interface ApiAccount {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: string;
+  accountStatus: "active" | "suspended" | "pending_payment";
+  individual?: {
+    operatingLocations?: Array<{ _id: string; name: string }>;
+  } | null;
+  business?: {
+    operatingLocations?: Array<{ _id: string; name: string }>;
+  } | null;
+  subscription?: {
+    planId?: {
+      title?: string;
+      name?: string;
+    } | null;
+  } | null;
+}
+
+interface AccountsResponse {
+  accounts: ApiAccount[];
+  paginationInfo: {
+    currentPage: number;
+    totalPages: number;
+    totalData: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+}
+
+interface IslandOption {
+  _id: string;
+  name: string;
+}
 
 // ── Status Badge ──────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: Account["status"] }) {
   const styles = {
     active: "bg-green-100 text-green-700",
-    onboarding: "bg-yellow-100 text-yellow-700",
+    pending_payment: "bg-yellow-100 text-yellow-700",
     suspended: "bg-red-100 text-red-600",
   };
   return (
@@ -54,35 +84,113 @@ function StatusBadge({ status }: { status: Account["status"] }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 function AccountsPage() {
+  const { data: session, status: sessionStatus } = useSession();
+  const token = session?.user?.accessToken;
+
   const [search, setSearch] = useState("");
   const [island, setIsland] = useState("all");
   const [status, setStatus] = useState("all");
   const [role, setRole] = useState("all");
+  const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState("50");
-  const [selected, setSelected] = useState<number[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
 
-  const filtered = mockAccounts.filter((a) => {
-    const matchSearch =
-      a.name.toLowerCase().includes(search.toLowerCase()) ||
-      a.email.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = status === "all" || a.status === status;
-    const matchRole = role === "all" || a.role === role;
-    return matchSearch && matchStatus && matchRole;
+  const { data: islandsData } = useQuery({
+    queryKey: ["island-options", token],
+    enabled: sessionStatus === "authenticated" && !!token,
+    queryFn: async () => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/islands`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to fetch islands");
+      }
+      return (json?.data?.islands || []) as IslandOption[];
+    },
   });
 
+  const { data: accountData, isLoading } = useQuery({
+    queryKey: ["account", token, page, perPage, search, role, status, island],
+    enabled: sessionStatus === "authenticated" && !!token,
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", perPage);
+      if (search.trim()) params.set("search", search.trim());
+      if (role !== "all") params.set("role", role);
+      if (status !== "all") params.set("status", status);
+      if (island !== "all") params.set("island", island);
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/user/all-accounts?${params.toString()}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to fetch accounts");
+      }
+      return json.data as AccountsResponse;
+    },
+  });
+
+  const tableData: Account[] = useMemo(() => {
+    const accounts = accountData?.accounts || [];
+    return accounts.map((item) => {
+      const fullName = `${item.firstName || ""} ${item.lastName || ""}`.trim() || "N/A";
+      const islandName =
+        item?.individual?.operatingLocations?.[0]?.name ||
+        item?.business?.operatingLocations?.[0]?.name ||
+        "N/A";
+      const planName = item?.subscription?.planId?.title || item?.subscription?.planId?.name || "Free";
+      const mappedStatus: Account["status"] =
+        item.accountStatus === "pending_payment"
+          ? "pending_payment"
+          : item.accountStatus === "suspended"
+            ? "suspended"
+            : "active";
+
+      return {
+        _id: item._id,
+        firstName: item.firstName,
+        lastName: item.lastName,
+        name: fullName,
+        email: item.email || "N/A",
+        island: islandName,
+        role: item.role || "N/A",
+        plan: planName,
+        status: mappedStatus,
+        listings: 0,
+      };
+    });
+  }, [accountData?.accounts]);
+
   const allSelected =
-    filtered.length > 0 && filtered.every((a) => selected.includes(a.id));
+    tableData.length > 0 && tableData.every((a) => selected.includes(a._id));
 
   const toggleAll = () => {
     if (allSelected) setSelected([]);
-    else setSelected(filtered.map((a) => a.id));
+    else setSelected(tableData.map((a) => a._id));
   };
 
-  const toggleOne = (id: number) => {
+  const toggleOne = (id: string) => {
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   };
+
+  const paginationInfo = accountData?.paginationInfo;
+  const totalData = paginationInfo?.totalData ?? 0;
+  const currentPage = paginationInfo?.currentPage ?? page;
+  const totalPages = paginationInfo?.totalPages ?? 1;
 
   return (
     <div className="container mx-auto py-8">
@@ -91,7 +199,7 @@ function AccountsPage() {
         {/* Title */}
         <h1 className="text-2xl font-semibold text-gray-900">Accounts</h1>
         <p className="text-sm text-gray-400 mt-1 mb-5">
-          32 total &nbsp;•&nbsp; Page 1 of 1
+          {totalData} total &nbsp;•&nbsp; Page {currentPage} of {totalPages}
         </p>
 
         {/* Search + Filters */}
@@ -102,9 +210,12 @@ function AccountsPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
-                placeholder="Email, name..."
+                placeholder="Email..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
                 className="pl-9 h-11 text-sm border-gray-200 focus-visible:ring-1 focus-visible:ring-gray-300"
               />
             </div>
@@ -113,15 +224,23 @@ function AccountsPage() {
           {/* Island */}
           <div className="w-48">
             <label className="text-xs text-gray-500 mb-1 block">Island</label>
-            <Select value={island} onValueChange={setIsland}>
+            <Select
+              value={island}
+              onValueChange={(value) => {
+                setIsland(value);
+                setPage(1);
+              }}
+            >
               <SelectTrigger className="!h-11 w-full text-sm border-gray-200">
                 <SelectValue placeholder="All Islands" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Islands</SelectItem>
-                <SelectItem value="anguilla">Anguilla</SelectItem>
-                <SelectItem value="bahamas">Bahamas</SelectItem>
-                <SelectItem value="barbados">Barbados</SelectItem>
+                {(islandsData || []).map((item) => (
+                  <SelectItem key={item._id} value={item._id}>
+                    {item.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -129,14 +248,20 @@ function AccountsPage() {
           {/* Status */}
           <div className="w-48">
             <label className="text-xs text-gray-500 mb-1 block">Status</label>
-            <Select value={status} onValueChange={setStatus}>
+            <Select
+              value={status}
+              onValueChange={(value) => {
+                setStatus(value);
+                setPage(1);
+              }}
+            >
               <SelectTrigger className="!h-11 w-full text-sm border-gray-200">
                 <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="onboarding">Onboarding</SelectItem>
+                <SelectItem value="pending_payment">Onboarding</SelectItem>
                 <SelectItem value="suspended">Suspended</SelectItem>
               </SelectContent>
             </Select>
@@ -145,14 +270,21 @@ function AccountsPage() {
           {/* Role */}
           <div className="w-48">
             <label className="text-xs text-gray-500 mb-1 block">Role</label>
-            <Select value={role} onValueChange={setRole}>
+            <Select
+              value={role}
+              onValueChange={(value) => {
+                setRole(value);
+                setPage(1);
+              }}
+            >
               <SelectTrigger className="!h-11 w-full text-sm border-gray-200">
                 <SelectValue placeholder="All Roles" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="user">User</SelectItem>
+                <SelectItem value="USER">User</SelectItem>
+                <SelectItem value="LANDLORD">Landlord</SelectItem>
+                <SelectItem value="AGENT">Agent</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -160,10 +292,16 @@ function AccountsPage() {
 
         {/* Pagination row */}
         <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-400">Showing upt o 50 per page</p>
+          <p className="text-sm text-gray-400">Showing up to {perPage} per page</p>
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-500">Per page</span>
-            <Select value={perPage} onValueChange={setPerPage}>
+            <Select
+              value={perPage}
+              onValueChange={(value) => {
+                setPerPage(value);
+                setPage(1);
+              }}
+            >
               <SelectTrigger className="!h-9 w-20 text-sm border-gray-200">
                 <SelectValue />
               </SelectTrigger>
@@ -177,6 +315,8 @@ function AccountsPage() {
             <Button
               variant="outline"
               size="sm"
+              disabled={!paginationInfo?.hasPrevPage}
+              onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
               className="!h-9 px-4 text-sm text-gray-500 border-gray-200 hover:bg-gray-50"
             >
               Previous
@@ -184,6 +324,8 @@ function AccountsPage() {
             <Button
               variant="outline"
               size="sm"
+              disabled={!paginationInfo?.hasNextPage}
+              onClick={() => setPage((prev) => prev + 1)}
               className="!h-9 px-4 text-sm text-gray-500 border-gray-200 hover:bg-gray-50"
             >
               Next
@@ -222,16 +364,28 @@ function AccountsPage() {
 
           {/* Body */}
           <tbody className="divide-y divide-gray-100">
-            {filtered.map((account) => (
+            {isLoading ? (
+              <tr>
+                <td className="px-4 py-6 text-sm text-gray-500" colSpan={8}>
+                  Loading accounts...
+                </td>
+              </tr>
+            ) : tableData.length === 0 ? (
+              <tr>
+                <td className="px-4 py-6 text-sm text-gray-500" colSpan={8}>
+                  No accounts found.
+                </td>
+              </tr>
+            ) : tableData.map((account) => (
               <tr
-                key={account.id}
+                key={account._id}
                 className="hover:bg-gray-50 transition-colors"
               >
                 {/* Checkbox */}
                 <td className="px-4 py-4">
                   <Checkbox  className="w-[20px] h-[20px]"
-                    checked={selected.includes(account.id)}
-                    onCheckedChange={() => toggleOne(account.id)}
+                    checked={selected.includes(account._id)}
+                    onCheckedChange={() => toggleOne(account._id)}
                   />
                 </td>
 
@@ -246,17 +400,17 @@ function AccountsPage() {
                 </td>
 
                 {/* Island */}
-                <td className="px-4 py-4 text-[20px] leading-[120%] font-semibold text-[#1C1C1C]">
+                <td className="px-4 py-4 text-[18px] leading-[120%] font-medium text-[#1C1C1C]">
                   {account.island}
                 </td>
 
                 {/* Role */}
-                <td className="px-4 py-4 text-[20px] leading-[120%] font-semibold text-[#1C1C1C]">
+                <td className="px-4 py-4 text-[17px] leading-[120%] font-medium text-[#1C1C1C]">
                   {account.role}
                 </td>
 
                 {/* Plan */}
-                <td className="px-4 py-4 text-[20px] leading-[120%] font-semibold text-[#1C1C1C]">
+                <td className="px-4 py-4 text-[18px] leading-[120%] font-medium text-[#1C1C1C]">
                   {account.plan}
                 </td>
 
@@ -266,16 +420,13 @@ function AccountsPage() {
                 </td>
 
                 {/* Listings */}
-                <td className="px-4 py-4 text-[20px] leading-[120%] font-semibold text-[#1C1C1C]">
+                <td className="px-4 py-4 text-[18px] leading-[120%] font-medium text-[#1C1C1C]">
                   {account.listings}
                 </td>
 
                 {/* Actions */}
                 <td className="px-4 py-4">
-                  {/* <button className="text-[20px] leading-[120%] font-semibold text-[#DF2634] hover:text-[#DF2634]/80 transition-colors">
-                    Manage
-                  </button> */}
-                  <AccoutntModal />
+                  <AccoutntModal id={account?._id}/>
                 </td>
               </tr>
             ))}
