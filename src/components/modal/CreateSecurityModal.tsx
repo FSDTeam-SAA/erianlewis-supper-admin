@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { X } from "lucide-react";
-// import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,40 +11,94 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-interface CreateFlagPayload {
-  userEmail: string;
-  flagType: string;
-  severity: string;
-  description: string;
+interface UserOption {
+  _id: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
 }
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (payload: CreateFlagPayload) => void;
+  onConfirm: () => void;
 }
 
-// ── Modal Component ───────────────────────────────────────────────────────────
 export function CreateSecurityModal({ isOpen, onClose, onConfirm }: Props) {
-  const [userEmail, setUserEmail] = useState("");
+  const { data: session, status: sessionStatus } = useSession();
+  const token = session?.user?.accessToken;
+
+  const [userId, setUserId] = useState("");
   const [flagType, setFlagType] = useState("suspicious_activity");
-  const [severity, setSeverity] = useState("Medium");
+  const [severity, setSeverity] = useState("medium");
   const [description, setDescription] = useState("");
+
+  const { data: userOptions = [] } = useQuery({
+    queryKey: ["security-flag-users", token],
+    enabled: isOpen && sessionStatus === "authenticated" && !!token,
+    queryFn: async () => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/security-flags/search-users?search=a`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to fetch users");
+      }
+
+      return (json.data || []) as UserOption[];
+    },
+  });
+
+  const addSecurityMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/security-flags`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId,
+          flagType,
+          severity,
+          description,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to create security flag");
+      }
+
+      return json.data;
+    },
+    onSuccess: () => {
+      setUserId("");
+      setFlagType("suspicious_activity");
+      setSeverity("medium");
+      setDescription("");
+      onConfirm();
+    },
+  });
 
   if (!isOpen) return null;
 
   const handleSubmit = () => {
-    onConfirm({ userEmail, flagType, severity, description });
-    setUserEmail("");
-    setFlagType("suspicious_activity");
-    setSeverity("Medium");
-    setDescription("");
+    if (!userId) return;
+    addSecurityMutation.mutate();
   };
 
   return (
-    /* Backdrop */
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[560px] mx-4 p-7">
         {/* Header */}
@@ -71,14 +124,20 @@ export function CreateSecurityModal({ isOpen, onClose, onConfirm }: Props) {
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             User Email / Name
           </label>
-          <Select value={userEmail} onValueChange={setUserEmail}>
+          <Select value={userId} onValueChange={setUserId}>
             <SelectTrigger className="!h-10 w-full text-sm border-gray-200">
               <SelectValue placeholder="user@example.com" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="user@example.com">user@example.com</SelectItem>
-              <SelectItem value="xyz@gmail.com">xyz@gmail.com</SelectItem>
-              <SelectItem value="waqas00@gmail.com">waqas00@gmail.com</SelectItem>
+              {userOptions.map((user) => {
+                const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim();
+                const label = `${fullName || "N/A"} - ${user.email || "N/A"}`;
+                return (
+                  <SelectItem key={user._id} value={user._id}>
+                    {label}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
           <p className="text-xs text-gray-400 mt-1">
@@ -117,10 +176,10 @@ export function CreateSecurityModal({ isOpen, onClose, onConfirm }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Low">Low</SelectItem>
-                <SelectItem value="Medium">Medium</SelectItem>
-                <SelectItem value="High">High</SelectItem>
-                <SelectItem value="Critical">Critical</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -149,6 +208,7 @@ export function CreateSecurityModal({ isOpen, onClose, onConfirm }: Props) {
           </Button>
           <button
             onClick={handleSubmit}
+            disabled={!userId || addSecurityMutation.isPending}
             className="px-6 h-10 text-sm font-medium text-white bg-[#e53935] hover:bg-[#c62828] rounded-lg transition-colors"
           >
             Create Flag

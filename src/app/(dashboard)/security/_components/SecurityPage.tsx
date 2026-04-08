@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,13 +13,13 @@ import {
 } from "@/components/ui/select";
 import { Plus } from "lucide-react";
 import { CreateSecurityModal } from "@/components/modal/CreateSecurityModal";
+import { useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-// type Severity = "Low" | "Medium" | "High" | "Critical";
 type FlagStatus = "open" | "resolved";
 
-interface SecurityFlag {
-  id: number;
+interface SecurityFlagRow {
+  id: string;
   account: string;
   island: string;
   role: string;
@@ -28,9 +28,41 @@ interface SecurityFlag {
   listings: number;
 }
 
-const mockFlags: SecurityFlag[] = [];
+interface ApiFlag {
+  _id: string;
+  resolved: boolean;
+  user?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    role?: string;
+    listingCount?: number;
+    subscription?: {
+      planId?: {
+        title?: string;
+        name?: string;
+      };
+    };
+    individual?: {
+      operatingLocations?: Array<{ name?: string }>;
+    } | null;
+    business?: {
+      operatingLocations?: Array<{ name?: string }>;
+    } | null;
+  };
+}
 
-// ── Status Badge ──────────────────────────────────────────────────────────────
+interface SecurityFlagsResponse {
+  flags: ApiFlag[];
+  paginationInfo: {
+    currentPage: number;
+    totalPages: number;
+    totalData: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+}
+
 function StatusBadge({ status }: { status: FlagStatus }) {
   return (
     <span
@@ -45,32 +77,81 @@ function StatusBadge({ status }: { status: FlagStatus }) {
   );
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
 function SecurityPage() {
+  const { data: session, status: sessionStatus } = useSession();
+  const token = session?.user?.accessToken;
+
   const [statusFilter, setStatusFilter] = useState("unresolved");
   const [severityFilter, setSeverityFilter] = useState("all");
-  const [userFilter, setUserFilter] = useState("52");
-  const [flags, setFlags] = useState<SecurityFlag[]>(mockFlags);
-  const [selected, setSelected] = useState<number[]>([]);
+  const [userFilter, setUserFilter] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
 
-  const filtered = flags.filter((f) => {
-    const matchStatus =
-      statusFilter === "all" ||
-      (statusFilter === "unresolved" && f.status === "open") ||
-      (statusFilter === "resolved" && f.status === "resolved");
-    return matchStatus;
+  const { data: flagsData, refetch } = useQuery({
+    queryKey: ["security-flags", token, statusFilter, severityFilter, userFilter],
+    enabled: sessionStatus === "authenticated" && !!token,
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set("page", "1");
+      params.set("limit", "50");
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      if (severityFilter !== "all") params.set("severity", severityFilter);
+      if (userFilter.trim()) params.set("userId", userFilter.trim());
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/security-flags?${params.toString()}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to fetch security flags");
+      }
+
+      return json.data as SecurityFlagsResponse;
+    },
   });
 
+  const flags: SecurityFlagRow[] = useMemo(
+    () =>
+      (flagsData?.flags || []).map((flag) => {
+        const fullName = `${flag.user?.firstName || ""} ${flag.user?.lastName || ""}`.trim();
+        const account = `${fullName || "N/A"} - ${flag.user?.email || "N/A"}`;
+        const island =
+          flag.user?.individual?.operatingLocations?.[0]?.name ||
+          flag.user?.business?.operatingLocations?.[0]?.name ||
+          "N/A";
+
+        return {
+          id: flag._id,
+          account,
+          island,
+          role: flag.user?.role || "N/A",
+          plan:
+            flag.user?.subscription?.planId?.title ||
+            flag.user?.subscription?.planId?.name ||
+            "Free",
+          status: flag.resolved ? "resolved" : "open",
+          listings: flag.user?.listingCount || 0,
+        };
+      }),
+    [flagsData?.flags]
+  );
+
   const allSelected =
-    filtered.length > 0 && filtered.every((f) => selected.includes(f.id));
+    flags.length > 0 && flags.every((f) => selected.includes(f.id));
 
   const toggleAll = () => {
     if (allSelected) setSelected([]);
-    else setSelected(filtered.map((f) => f.id));
+    else setSelected(flags.map((f) => f.id));
   };
 
-  const toggleOne = (id: number) =>
+  const toggleOne = (id: string) =>
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
@@ -85,14 +166,14 @@ function SecurityPage() {
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">Security</h1>
             <p className="text-sm text-gray-400 mt-1">
-              {openCount} open/ {flags.length} total &nbsp;•&nbsp; user #52
+              {openCount} open/ {flags.length} total &nbsp;•&nbsp; user #{userFilter || "all"}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setFlags(mockFlags)}
+              onClick={() => refetch()}
               className="h-9 px-4 text-sm text-gray-600 border-gray-200 hover:bg-gray-50"
             >
               Reset
@@ -115,7 +196,13 @@ function SecurityPage() {
               <label className="text-xs text-gray-500 mb-1 block">
                 Status Filter
               </label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  setStatusFilter(value);
+                  setSelected([]);
+                }}
+              >
                 <SelectTrigger className="!h-10 w-full text-sm border-gray-200">
                   <SelectValue />
                 </SelectTrigger>
@@ -132,7 +219,13 @@ function SecurityPage() {
               <label className="text-xs text-gray-500 mb-1 block">
                 Severity Filter
               </label>
-              <Select value={severityFilter} onValueChange={setSeverityFilter}>
+              <Select
+                value={severityFilter}
+                onValueChange={(value) => {
+                  setSeverityFilter(value);
+                  setSelected([]);
+                }}
+              >
                 <SelectTrigger className="!h-10 w-full text-sm border-gray-200">
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
@@ -153,7 +246,10 @@ function SecurityPage() {
               </label>
               <Input
                 value={userFilter}
-                onChange={(e) => setUserFilter(e.target.value)}
+                onChange={(e) => {
+                  setUserFilter(e.target.value);
+                  setSelected([]);
+                }}
                 className="h-10 text-sm border-gray-200"
               />
             </div>
@@ -164,7 +260,8 @@ function SecurityPage() {
               onClick={() => {
                 setStatusFilter("unresolved");
                 setSeverityFilter("all");
-                setUserFilter("52");
+                setUserFilter("");
+                setSelected([]);
               }}
               className="h-10 px-4 text-sm text-gray-600 border-gray-200 hover:bg-gray-50"
             >
@@ -201,7 +298,7 @@ function SecurityPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filtered.map((flag) => (
+            {flags.map((flag) => (
               <tr key={flag.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-4">
                   <Checkbox
@@ -230,7 +327,7 @@ function SecurityPage() {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {flags.length === 0 && (
               <tr>
                 <td
                   colSpan={8}
@@ -248,19 +345,8 @@ function SecurityPage() {
       <CreateSecurityModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        onConfirm={(flag) => {
-          setFlags((prev) => [
-            ...prev,
-            {
-              id: Date.now(),
-              account: flag.userEmail,
-              island: "—",
-              role: "—",
-              plan: "—",
-              status: "open",
-              listings: 0,
-            },
-          ]);
+        onConfirm={() => {
+          refetch();
           setModalOpen(false);
         }}
       />
