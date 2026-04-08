@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Plus } from "lucide-react";
 import { CreateSecurityModal } from "@/components/modal/CreateSecurityModal";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 type FlagStatus = "open" | "resolved";
@@ -117,6 +117,38 @@ function SecurityPage() {
     },
   });
 
+
+  const updateMutation = useMutation({
+    mutationFn: async ({
+      id,
+      action,
+    }: {
+      id: string;
+      action: "resolve" | "unresolve";
+    }) => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/security-flags/${id}/${action}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to update flag status");
+      }
+
+      return json.data;
+    },
+    onSuccess: () => {
+      refetch();
+    },
+  });
+
   const flags: SecurityFlagRow[] = useMemo(
     () =>
       (flagsData?.flags || []).map((flag) => {
@@ -192,7 +224,7 @@ function SecurityPage() {
         <div className="">
           <div className="flex items-end gap-3">
             {/* Status Filter */}
-            <div className="w-52">
+            <div className="w-full">
               <label className="text-xs text-gray-500 mb-1 block">
                 Status Filter
               </label>
@@ -215,7 +247,7 @@ function SecurityPage() {
             </div>
 
             {/* Severity Filter */}
-            <div className="w-52">
+            <div className="w-full">
               <label className="text-xs text-gray-500 mb-1 block">
                 Severity Filter
               </label>
@@ -321,9 +353,25 @@ function SecurityPage() {
                   {flag.listings}
                 </td>
                 <td className="px-4 py-4">
-                  <button className="text-sm font-semibold text-[#e53935] hover:text-[#c62828] transition-colors">
-                    View
-                  </button>
+                  {flag.status === "resolved" ? (
+                    <button
+                      onClick={() =>
+                        updateMutation.mutate({ id: flag.id, action: "unresolve" })
+                      }
+                      className="h-8 px-3 text-xs font-medium text-[#e53935] border border-[#e53935] rounded-md hover:bg-red-50 transition-colors"
+                    >
+                      Unresolved
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() =>
+                        updateMutation.mutate({ id: flag.id, action: "resolve" })
+                      }
+                      className="h-8 px-3 text-xs font-medium text-[#e53935] border border-[#e53935] rounded-md hover:bg-red-50 transition-colors"
+                    >
+                      Resolved
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

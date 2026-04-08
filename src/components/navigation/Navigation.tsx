@@ -29,6 +29,9 @@ const navItems = [
   { label: "Audit Logs", icon: FileText, href: "/audit-logs" },
   { label: "Communication Log", icon: MessageSquare, href: "/communication-log" },
   { label: "Security", icon: MessageSquare, href: "/security" },
+  { label: "Data Export", icon: MessageSquare, href: "/data-export" },
+    { label: "Legal Documents", icon: MessageSquare, href: "/legal-documents" },
+
 ];
 
 function Navigation() {
