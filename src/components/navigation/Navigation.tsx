@@ -28,6 +28,7 @@ const navItems = [
   { label: "Management Inquires", icon: Mail, href: "/inquires" },
   { label: "Audit Logs", icon: FileText, href: "/audit-logs" },
   { label: "Communication Log", icon: MessageSquare, href: "/communication-log" },
+  { label: "Security", icon: MessageSquare, href: "/security" },
 ];
 
 function Navigation() {

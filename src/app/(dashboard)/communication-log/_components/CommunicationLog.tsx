@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Search, ChevronRight, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,12 +11,40 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-type LogType = "inquiry" | "Appointment" | "Inquiry response";
+type LogType = "inquiry" | "appointment" | "inquiry_response";
+
+interface ApiPerson {
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  email?: string;
+}
+
+interface ApiCommLog {
+  _id: string;
+  when: string;
+  type: LogType;
+  who?: ApiPerson;
+  subject?: string;
+  message?: string;
+}
+
+interface CommLogResponse {
+  logs: ApiCommLog[];
+  paginationInfo: {
+    currentPage: number;
+    totalPages: number;
+    totalData: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+}
 
 interface CommLog {
-  id: number;
+  id: string;
   timestamp: string;
   type: LogType;
   who: string;
@@ -24,89 +52,135 @@ interface CommLog {
   message: string;
 }
 
-// ── Type Badge ────────────────────────────────────────────────────────────────
 function TypeBadge({ type }: { type: LogType }) {
   const styles: Record<LogType, string> = {
     inquiry: "bg-blue-100 text-blue-500",
-    Appointment: "bg-cyan-100 text-cyan-600",
-    "Inquiry response": "bg-green-100 text-green-600",
+    appointment: "bg-cyan-100 text-cyan-600",
+    inquiry_response: "bg-green-100 text-green-600",
   };
+
+  const labels: Record<LogType, string> = {
+    inquiry: "Inquiry",
+    appointment: "Appointment",
+    inquiry_response: "Inquiry response",
+  };
+
   return (
     <span
       className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${styles[type]}`}
     >
-      {type}
+      {labels[type]}
     </span>
   );
 }
 
-// ── Mock Data ─────────────────────────────────────────────────────────────────
-const typeSequence: LogType[] = [
-  "inquiry",
-  "Appointment",
-  "Inquiry response",
-  "inquiry",
-  "inquiry",
-  "inquiry",
-  "inquiry",
-  "Appointment",
-  "Appointment",
-  "Appointment",
-  "Appointment",
-  "Inquiry response",
-  "Inquiry response",
-  "Inquiry response",
-  "Appointment",
-  "Appointment",
-  "Appointment",
-  "inquiry",
-  "inquiry",
-];
-
-const messageMap: Record<LogType, string> = {
-  inquiry: "I'm interest",
-  Appointment: "Testing",
-  "Inquiry response": "Dewe",
-};
-
-const mockLogs: CommLog[] = Array.from({ length: 10 }, (_, i) => {
-  const type = typeSequence[i % typeSequence.length];
-  return {
-    id: i + 1,
-    timestamp: "23/02/2024, 12:34:45",
-    type,
-    who: "Moon sky - xyz@gmail.com",
-    subject: "Appointment request",
-    message: messageMap[type],
-  };
-});
-
 const PAGE_SIZE_OPTIONS = ["10", "25", "50", "100"];
 
-// ── Main Component ────────────────────────────────────────────────────────────
+function formatTimestamp(isoDate?: string) {
+  if (!isoDate) return "N/A";
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return "N/A";
+
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
+function formatWho(who?: ApiPerson) {
+  if (!who) return "N/A";
+
+  if (who.name) {
+    return `${who.name} - ${who.email || "N/A"}`;
+  }
+
+  const fullName = `${who.firstName || ""} ${who.lastName || ""}`.trim();
+  if (fullName || who.email) {
+    return `${fullName || "N/A"} - ${who.email || "N/A"}`;
+  }
+
+  return "N/A";
+}
+
+function parseDateRange(input: string) {
+  const value = input.trim();
+  if (!value) return { startDate: "", endDate: "" };
+
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return { startDate: "", endDate: "" };
+
+  const [, dd, mm, yyyy] = match;
+  const isoDate = `${yyyy}-${mm}-${dd}`;
+  const date = new Date(`${isoDate}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return { startDate: "", endDate: "" };
+
+  return { startDate: isoDate, endDate: isoDate };
+}
+
 function CommunicationLog() {
+  const { data: session, status: sessionStatus } = useSession();
+  const token = session?.user?.accessToken;
+
   const [search, setSearch] = useState("");
   const [type, setType] = useState("all");
   const [dateRange, setDateRange] = useState("");
   const [perPage, setPerPage] = useState("50");
   const [page, setPage] = useState(1);
 
-  const filtered = mockLogs.filter((log) => {
-    const matchSearch =
-      search === "" ||
-      log.who.toLowerCase().includes(search.toLowerCase()) ||
-      log.subject.toLowerCase().includes(search.toLowerCase()) ||
-      log.message.toLowerCase().includes(search.toLowerCase());
-    const matchType =
-      type === "all" || log.type.toLowerCase() === type.toLowerCase();
-    return matchSearch && matchType;
+  const { data: communicationData, isLoading } = useQuery({
+    queryKey: ["communication", token, page, perPage, search, type, dateRange],
+    enabled: sessionStatus === "authenticated" && !!token,
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", perPage);
+      if (search.trim()) params.set("search", search.trim());
+      if (type !== "all") params.set("type", type);
+
+      const { startDate, endDate } = parseDateRange(dateRange);
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/communication-logs?${params.toString()}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to fetch communication logs");
+      }
+
+      return json.data as CommLogResponse;
+    },
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / Number(perPage)));
-  const paginated = filtered.slice(
-    (page - 1) * Number(perPage),
-    page * Number(perPage)
+  const paginated: CommLog[] = useMemo(
+    () =>
+      (communicationData?.logs || []).map((log) => ({
+        id: log._id,
+        timestamp: formatTimestamp(log.when),
+        type: log.type,
+        who: formatWho(log.who),
+        subject: log.subject || "N/A",
+        message: log.message || "N/A",
+      })),
+    [communicationData?.logs]
   );
+
+  const totalData = communicationData?.paginationInfo?.totalData ?? 0;
+  const currentPage = communicationData?.paginationInfo?.currentPage ?? page;
+  const totalPages = communicationData?.paginationInfo?.totalPages ?? 1;
 
   return (
     <div className="container mx-auto py-8">
@@ -116,7 +190,7 @@ function CommunicationLog() {
           Communication Log
         </h1>
         <p className="text-sm text-gray-400 mt-1 mb-5">
-          {filtered.length} total &nbsp;•&nbsp; Page {page} of {totalPages}
+          {totalData} total &nbsp;•&nbsp; Page {currentPage} of {totalPages}
         </p>
 
         {/* Filters */}
@@ -157,7 +231,7 @@ function CommunicationLog() {
                 <SelectItem value="all">All Islands</SelectItem>
                 <SelectItem value="inquiry">Inquiry</SelectItem>
                 <SelectItem value="appointment">Appointment</SelectItem>
-                <SelectItem value="inquiry response">
+                <SelectItem value="inquiry_response">
                   Inquiry Response
                 </SelectItem>
               </SelectContent>
@@ -173,7 +247,10 @@ function CommunicationLog() {
               <Input
                 placeholder="dd/mm/yyyy"
                 value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
+                onChange={(e) => {
+                  setDateRange(e.target.value);
+                  setPage(1);
+                }}
                 className="h-11 text-sm border-gray-200 pr-9 focus-visible:ring-1 focus-visible:ring-gray-300"
               />
               <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -209,7 +286,7 @@ function CommunicationLog() {
             <Button
               variant="outline"
               size="sm"
-              disabled={page <= 1}
+              disabled={currentPage <= 1}
               onClick={() => setPage((p) => p - 1)}
               className="!h-9 px-4 text-sm text-gray-500 border-gray-200 hover:bg-gray-50"
             >
@@ -218,7 +295,7 @@ function CommunicationLog() {
             <Button
               variant="outline"
               size="sm"
-              disabled={page >= totalPages}
+              disabled={currentPage >= totalPages}
               onClick={() => setPage((p) => p + 1)}
               className="!h-9 px-4 text-sm text-gray-500 border-gray-200 hover:bg-gray-50"
             >
@@ -277,7 +354,7 @@ function CommunicationLog() {
               </tr>
             ))}
 
-            {paginated.length === 0 && (
+            {!isLoading && paginated.length === 0 && (
               <tr>
                 <td
                   colSpan={5}

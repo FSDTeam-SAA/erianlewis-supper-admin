@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,75 +11,166 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-interface AuditLog {
-  id: number;
+interface AuditLogItem {
+  _id: string;
+  action: string;
+  actor?: {
+    email?: string;
+  };
+  entity?: {
+    label?: string;
+  };
+  details?: Record<string, unknown>;
+  createdAt: string;
+}
+
+interface AuditLogsResponse {
+  logs: AuditLogItem[];
+  paginationInfo: {
+    currentPage: number;
+    totalPages: number;
+    totalData: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+}
+
+interface AuditLogRow {
+  id: string;
   timestamp: string;
   action: string;
-  actionColor: string;
   entity: string;
   actor: string;
   details: string;
 }
 
-// ── Action Badge Colors ───────────────────────────────────────────────────────
 const actionStyle: Record<string, string> = {
-  "data export": "bg-blue-100 text-blue-600",
-  "Account deleted": "bg-red-100 text-red-500",
-  "legal documents updated": "bg-purple-100 text-purple-600",
-  "superadmin auto mode updated": "bg-orange-100 text-orange-600",
-  "listing deleted": "bg-red-100 text-red-500",
+  data_export: "bg-blue-100 text-blue-600",
+  account_deleted: "bg-red-100 text-red-500",
+  legal_documents_updated: "bg-purple-100 text-purple-600",
+  config_updated: "bg-orange-100 text-orange-600",
+  listing_deleted: "bg-red-100 text-red-500",
 };
 
 function getActionStyle(action: string) {
   return actionStyle[action] ?? "bg-blue-100 text-blue-600";
 }
 
-// ── Mock Data ─────────────────────────────────────────────────────────────────
 const actions = [
-  "data export",
-  "Account deleted",
-  "legal documents updated",
-  "superadmin auto mode updated",
-  "listing deleted",
+  "data_export",
+  "account_deleted",
+  "legal_documents_updated",
+  "config_updated",
+  "listing_deleted",
+  "account_activated",
+  "account_suspended",
+  "listing_disabled",
+  "listing_enabled",
+  "security_flag_created",
+  "security_flag_resolved",
+  "plan_created",
+  "plan_updated",
+  "plan_deleted",
+  "island_created",
+  "island_updated",
+  "island_deleted",
+  "review_hidden",
+  "review_visible",
+  "inquiry_deleted",
 ];
-
-const mockLogs: AuditLog[] = Array.from({ length: 10 }, (_, i) => ({
-  id: i + 1,
-  timestamp: "23/02/2024, 12:34:45",
-  action: i === 1 ? "Account deleted"
-    : i === 2 ? "legal documents updated"
-    : i === 3 ? "superadmin auto mode updated"
-    : i === 4 ? "listing deleted"
-    : "data export",
-  actionColor: "",
-  entity: "accounts #N/A",
-  actor: "xyz@gmail.com",
-  details: "View Changes",
-}));
 
 const PAGE_SIZE_OPTIONS = ["10", "25", "50", "100"];
 
-// ── Main Component ────────────────────────────────────────────────────────────
+function formatActionLabel(action: string) {
+  return action.replaceAll("_", " ");
+}
+
+function formatTimestamp(isoDate?: string) {
+  if (!isoDate) return "N/A";
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return "N/A";
+
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
+function formatDetails(details?: Record<string, unknown>) {
+  if (!details || Object.keys(details).length === 0) return "View Changes";
+
+  const values = Object.values(details).filter(
+    (value) => value !== null && value !== undefined && String(value).trim() !== ""
+  );
+
+  if (values.length === 0) return "View Changes";
+  return String(values[0]);
+}
+
 function AuditLogs() {
+  const { data: session, status: sessionStatus } = useSession();
+  const token = session?.user?.accessToken;
+
   const [entityType, setEntityType] = useState("all");
   const [actionType, setActionType] = useState("all");
   const [island, setIsland] = useState("");
   const [perPage, setPerPage] = useState("50");
   const [page, setPage] = useState(1);
 
-  // Filter
-  const filtered = mockLogs.filter((log) => {
-    const matchAction = actionType === "all" || log.action === actionType;
-    return matchAction;
+  const { data: auditData, isLoading } = useQuery({
+    queryKey: ["audit", token, page, perPage, entityType, actionType, island],
+    enabled: sessionStatus === "authenticated" && !!token,
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", perPage);
+      if (entityType !== "all") params.set("entityType", entityType);
+      if (actionType !== "all") params.set("action", actionType);
+      if (island.trim()) params.set("island", island.trim());
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/audit-logs?${params.toString()}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to fetch audit logs");
+      }
+
+      return json.data as AuditLogsResponse;
+    },
   });
 
-  const totalPages = Math.ceil(filtered.length / Number(perPage));
-  const paginated = filtered.slice(
-    (page - 1) * Number(perPage),
-    page * Number(perPage)
+  const paginated: AuditLogRow[] = useMemo(
+    () =>
+      (auditData?.logs || []).map((log) => ({
+        id: log._id,
+        timestamp: formatTimestamp(log.createdAt),
+        action: log.action,
+        entity: log.entity?.label || "N/A",
+        actor: log.actor?.email || "N/A",
+        details: formatDetails(log.details),
+      })),
+    [auditData?.logs]
   );
+
+  const totalData = auditData?.paginationInfo?.totalData ?? 0;
+  const totalPages = auditData?.paginationInfo?.totalPages ?? 1;
+  const currentPage = auditData?.paginationInfo?.currentPage ?? page;
 
   return (
     <div className="container mx-auto py-8">
@@ -87,7 +178,7 @@ function AuditLogs() {
       <div className="bg-white rounded-[12px] border border-gray-200 shadow-[1px_1px_4px_0px_#00000040] p-6 mb-4">
         <h1 className="text-2xl font-semibold text-gray-900">Audit Logs</h1>
         <p className="text-sm text-gray-400 mt-1 mb-5">
-          {filtered.length} total &nbsp;•&nbsp; Page {page} of {totalPages}
+          {totalData} total &nbsp;•&nbsp; Page {currentPage} of {totalPages}
         </p>
 
         {/* Filters row */}
@@ -97,15 +188,27 @@ function AuditLogs() {
             <label className="text-xs text-gray-500 mb-1 block">
               Entity Type
             </label>
-            <Select value={entityType} onValueChange={setEntityType}>
+            <Select
+              value={entityType}
+              onValueChange={(value) => {
+                setEntityType(value);
+                setPage(1);
+              }}
+            >
               <SelectTrigger className="!h-11 w-full text-sm border-gray-200">
                 <SelectValue placeholder="All Entities" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Entities</SelectItem>
-                <SelectItem value="accounts">Accounts</SelectItem>
-                <SelectItem value="listings">Listings</SelectItem>
-                <SelectItem value="users">Users</SelectItem>
+                <SelectItem value="user">Accounts</SelectItem>
+                <SelectItem value="property">Listings</SelectItem>
+                <SelectItem value="platform_config">Platform Config</SelectItem>
+                <SelectItem value="security_flag">Security Flags</SelectItem>
+                <SelectItem value="legal_documents">Legal Documents</SelectItem>
+                <SelectItem value="plan">Plan</SelectItem>
+                <SelectItem value="island">Island</SelectItem>
+                <SelectItem value="review">Review</SelectItem>
+                <SelectItem value="inquiry">Inquiry</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -115,7 +218,13 @@ function AuditLogs() {
             <label className="text-xs text-gray-500 mb-1 block">
               Action Type
             </label>
-            <Select value={actionType} onValueChange={setActionType}>
+            <Select
+              value={actionType}
+              onValueChange={(value) => {
+                setActionType(value);
+                setPage(1);
+              }}
+            >
               <SelectTrigger className="!h-11 w-full text-sm border-gray-200">
                 <SelectValue placeholder="All Actions" />
               </SelectTrigger>
@@ -123,7 +232,7 @@ function AuditLogs() {
                 <SelectItem value="all">All Actions</SelectItem>
                 {actions.map((a) => (
                   <SelectItem key={a} value={a}>
-                    {a}
+                    {formatActionLabel(a)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -137,7 +246,10 @@ function AuditLogs() {
               <Input
                 placeholder="e.g. Aruba"
                 value={island}
-                onChange={(e) => setIsland(e.target.value)}
+                onChange={(e) => {
+                  setIsland(e.target.value);
+                  setPage(1);
+                }}
                 className="h-11 text-sm border-gray-200 focus-visible:ring-1 focus-visible:ring-gray-300"
               />
             </div>
@@ -172,7 +284,7 @@ function AuditLogs() {
             <Button
               variant="outline"
               size="sm"
-              disabled={page <= 1}
+              disabled={currentPage <= 1}
               onClick={() => setPage((p) => p - 1)}
               className="!h-9 px-4 text-sm text-gray-500 border-gray-200 hover:bg-gray-50"
             >
@@ -181,7 +293,7 @@ function AuditLogs() {
             <Button
               variant="outline"
               size="sm"
-              disabled={page >= totalPages}
+              disabled={currentPage >= totalPages}
               onClick={() => setPage((p) => p + 1)}
               className="!h-9 px-4 text-sm text-gray-500 border-gray-200 hover:bg-gray-50"
             >
@@ -227,7 +339,7 @@ function AuditLogs() {
                       log.action
                     )}`}
                   >
-                    {log.action}
+                    {formatActionLabel(log.action)}
                   </span>
                 </td>
 
@@ -245,13 +357,13 @@ function AuditLogs() {
                 <td className="px-5 py-3.5">
                   <button className="flex items-center gap-1 text-sm font-semibold text-[#e53935] hover:text-[#c62828] transition-colors">
                     <ChevronRight className="w-3.5 h-3.5" />
-                    View Changes
+                    {log.details}
                   </button>
                 </td>
               </tr>
             ))}
 
-            {paginated.length === 0 && (
+            {!isLoading && paginated.length === 0 && (
               <tr>
                 <td
                   colSpan={5}
