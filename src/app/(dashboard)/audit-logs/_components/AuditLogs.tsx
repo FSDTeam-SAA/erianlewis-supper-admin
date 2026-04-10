@@ -45,7 +45,7 @@ interface AuditLogRow {
   action: string;
   entity: string;
   actor: string;
-  details: string;
+  detailsRaw: Record<string, unknown>;
 }
 
 const actionStyle: Record<string, string> = {
@@ -105,17 +105,6 @@ function formatTimestamp(isoDate?: string) {
   });
 }
 
-function formatDetails(details?: Record<string, unknown>) {
-  if (!details || Object.keys(details).length === 0) return "View Changes";
-
-  const values = Object.values(details).filter(
-    (value) => value !== null && value !== undefined && String(value).trim() !== ""
-  );
-
-  if (values.length === 0) return "View Changes";
-  return String(values[0]);
-}
-
 function AuditLogs() {
   const { data: session, status: sessionStatus } = useSession();
   const token = session?.user?.accessToken;
@@ -125,6 +114,7 @@ function AuditLogs() {
   const [island, setIsland] = useState("");
   const [perPage, setPerPage] = useState("50");
   const [page, setPage] = useState(1);
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
   const { data: auditData, isLoading } = useQuery({
     queryKey: ["audit", token, page, perPage, entityType, actionType, island],
@@ -164,7 +154,7 @@ function AuditLogs() {
         action: log.action,
         entity: log.entity?.label || "N/A",
         actor: log.actor?.email || "N/A",
-        details: formatDetails(log.details),
+        detailsRaw: log.details || {},
       })),
     [auditData?.logs]
   );
@@ -347,17 +337,14 @@ function AuditLogs() {
                   </tr>
                 ))
               : paginated.map((log) => (
-                  <tr
-                    key={log.id}
-                    className="hover:bg-gray-50 transition-colors"
-                  >
+                  <tr key={log.id} className="hover:bg-gray-50 transition-colors align-top">
                     {/* Timestamp */}
-                    <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap">
+                    <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap align-top">
                       {log.timestamp}
                     </td>
 
                     {/* Action badge */}
-                    <td className="px-5 py-3.5">
+                    <td className="px-5 py-3.5 align-top">
                       <span
                         className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${getActionStyle(
                           log.action
@@ -368,21 +355,42 @@ function AuditLogs() {
                     </td>
 
                     {/* Entity */}
-                    <td className="px-5 py-3.5 text-sm text-gray-700">
+                    <td className="px-5 py-3.5 text-sm text-gray-700 align-top">
                       {log.entity}
                     </td>
 
                     {/* Actor */}
-                    <td className="px-5 py-3.5 text-sm text-gray-700">
+                    <td className="px-5 py-3.5 text-sm text-gray-700 align-top">
                       {log.actor}
                     </td>
 
                     {/* Details */}
-                    <td className="px-5 py-3.5">
-                      <button className="flex items-center gap-1 text-sm font-semibold text-[#e53935] hover:text-[#c62828] transition-colors">
-                        <ChevronRight className="w-3.5 h-3.5" />
-                        {log.details}
-                      </button>
+                    <td className="px-5 py-3.5 align-top">
+                      <div className="space-y-2">
+                        <button
+                          onClick={() =>
+                            setExpandedLogId((current) =>
+                              current === log.id ? null : log.id
+                            )
+                          }
+                          className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-[#e53935] hover:text-[#c62828] transition-colors"
+                        >
+                          <ChevronRight
+                            className={`w-3.5 h-3.5 transition-transform ${
+                              expandedLogId === log.id ? "rotate-90" : ""
+                            }`}
+                          />
+                          View Changes
+                        </button>
+
+                        {expandedLogId === log.id && (
+                          <div className="rounded-md bg-[#F3F4F6] p-3">
+                            <pre className="text-sm text-[#475467] whitespace-pre-wrap">
+                              {JSON.stringify(log.detailsRaw, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

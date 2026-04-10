@@ -50,7 +50,7 @@ interface CommLog {
   type: LogType;
   who: string;
   subject: string;
-  message: string;
+  messageRaw: unknown;
 }
 
 function TypeBadge({ type }: { type: LogType }) {
@@ -132,6 +132,7 @@ function CommunicationLog() {
   const [dateRange, setDateRange] = useState("");
   const [perPage, setPerPage] = useState("50");
   const [page, setPage] = useState(1);
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
   const { data: communicationData, isLoading } = useQuery({
     queryKey: ["communication", token, page, perPage, search, type, dateRange],
@@ -174,7 +175,7 @@ function CommunicationLog() {
         type: log.type,
         who: formatWho(log.who),
         subject: log.subject || "N/A",
-        message: log.message || "N/A",
+        messageRaw: log.message ?? null,
       })),
     [communicationData?.logs]
   );
@@ -347,33 +348,64 @@ function CommunicationLog() {
                   </tr>
                 ))
               : paginated.map((log) => (
-                  <tr key={log.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={log.id} className="hover:bg-gray-50 transition-colors align-top">
                     {/* WHEN */}
-                    <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap">
+                    <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap align-top">
                       {log.timestamp}
                     </td>
 
                     {/* TYPE badge */}
-                    <td className="px-5 py-3.5">
+                    <td className="px-5 py-3.5 align-top">
                       <TypeBadge type={log.type} />
                     </td>
 
                     {/* WHO */}
-                    <td className="px-5 py-3.5 text-sm text-gray-700">
+                    <td className="px-5 py-3.5 text-sm text-gray-700 align-top">
                       {log.who}
                     </td>
 
                     {/* SUBJECT */}
-                    <td className="px-5 py-3.5 text-sm text-gray-700">
+                    <td className="px-5 py-3.5 text-sm text-gray-700 align-top">
                       {log.subject}
                     </td>
 
                     {/* MESSAGE */}
-                    <td className="px-5 py-3.5">
-                      <button className="flex items-center gap-1 text-sm font-semibold text-[#e53935] hover:text-[#c62828] transition-colors">
-                        <ChevronRight className="w-3.5 h-3.5" />
-                        {log.message}
-                      </button>
+                    <td className="px-5 py-3.5 align-top">
+                      <div className="space-y-2">
+                        <button
+                          onClick={() =>
+                            setExpandedLogId((current) =>
+                              current === log.id ? null : log.id
+                            )
+                          }
+                          className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-[#e53935] hover:text-[#c62828] transition-colors"
+                        >
+                          <ChevronRight
+                            className={`w-3.5 h-3.5 transition-transform ${
+                              expandedLogId === log.id ? "rotate-90" : ""
+                            }`}
+                          />
+                          View Message
+                        </button>
+
+                        {expandedLogId === log.id && (
+                          <div className="rounded-md bg-[#F3F4F6] p-3">
+                            <pre className="text-sm text-[#475467] whitespace-pre-wrap">
+                              {typeof log.messageRaw === "string"
+                                ? (() => {
+                                    try {
+                                      return JSON.stringify(JSON.parse(log.messageRaw), null, 2);
+                                    } catch {
+                                      return log.messageRaw || "N/A";
+                                    }
+                                  })()
+                                : log.messageRaw
+                                  ? JSON.stringify(log.messageRaw, null, 2)
+                                  : "N/A"}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
