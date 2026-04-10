@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import { Map, Building2, Users, Search, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
@@ -118,6 +119,40 @@ function IslandCard({
             View Listings
           </Button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function IslandCardSkeleton() {
+  return (
+    <div className="rounded-[12px] border border-gray-200 bg-white p-4">
+      <div className="flex items-center justify-between mb-3">
+        <Skeleton className="h-5 w-32" />
+      </div>
+
+      <div className="flex items-center justify-between py-2">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-4 w-4 rounded-full" />
+          <Skeleton className="h-4 w-20" />
+        </div>
+        <Skeleton className="h-7 w-12" />
+      </div>
+
+      <div className="mb-2 pl-6">
+        <Skeleton className="h-3 w-36" />
+      </div>
+
+      <div className="flex items-center justify-between py-2">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-4 w-4 rounded-full" />
+          <Skeleton className="h-4 w-20" />
+        </div>
+        <Skeleton className="h-7 w-12" />
+      </div>
+
+      <div className="border-t border-gray-100 pt-3 mt-1">
+        <Skeleton className="h-[40px] w-full" />
       </div>
     </div>
   );
@@ -458,7 +493,11 @@ function IslandPage() {
       )}
 
       {isIslandLoading ? (
-        <p className="text-sm text-gray-500">Loading islands...</p>
+        <div className="grid grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <IslandCardSkeleton key={index} />
+          ))}
+        </div>
       ) : (
         <div className="grid grid-cols-3 gap-4">
           {filteredIslands.map((island) => (

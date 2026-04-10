@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Download } from "lucide-react";
 import { useSession } from "next-auth/react";
 import React from "react";
 
@@ -172,12 +173,10 @@ function DataExport() {
                 <button
                   onClick={() => handleExport(card.key)}
                   disabled={exportMutation.isPending}
-                  className="w-full bg-red-600 hover:bg-red-700 transition-colors text-white font-medium py-3 px-6 rounded-xl flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="w-full bg-[#DC2626] hover:bg-[#DC2626]/80 transition-colors text-white font-medium py-2 px-6 rounded-[8px] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 13v6m-3-3h6M6 21H3a2 2 0 01-2-2V6a2 2 0 012-2h3" />
-                  </svg>
-                  {isCurrent ? "Exporting..." : "Export PDF"}
+                  <Download />
+                  {isCurrent ? "Exporting..." : "Export JSON"}
                 </button>
               </div>
             );

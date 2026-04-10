@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -287,11 +288,37 @@ function BillingPage() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr>
-                <td className="px-4 py-6 text-sm text-gray-500" colSpan={9}>
-                  Loading billing records...
-                </td>
-              </tr>
+              Array.from({ length: 6 }).map((_, index) => (
+                <tr key={index}>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-4 w-32" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-4 w-40" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-4 w-20" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-4 w-24" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-4 w-16" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-4 w-20" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-4 w-24" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-4 w-24" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                  </td>
+                </tr>
+              ))
             ) : billingRows.length === 0 ? (
               <tr>
                 <td className="px-4 py-6 text-sm text-gray-500" colSpan={9}>

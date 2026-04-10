@@ -5,6 +5,7 @@ import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -365,11 +366,35 @@ function AccountsPage() {
           {/* Body */}
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr>
-                <td className="px-4 py-6 text-sm text-gray-500" colSpan={8}>
-                  Loading accounts...
-                </td>
-              </tr>
+              Array.from({ length: 6 }).map((_, index) => (
+                <tr key={index}>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-5 w-5 rounded-sm" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-5 w-40 mb-2" />
+                    <Skeleton className="h-4 w-56" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-5 w-20" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-5 w-20" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-5 w-24" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-8 w-24 rounded-full" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-5 w-8" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-9 w-20" />
+                  </td>
+                </tr>
+              ))
             ) : tableData.length === 0 ? (
               <tr>
                 <td className="px-4 py-6 text-sm text-gray-500" colSpan={8}>

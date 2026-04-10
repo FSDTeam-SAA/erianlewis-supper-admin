@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -322,46 +323,69 @@ function AuditLogs() {
           </thead>
 
           <tbody className="divide-y divide-gray-100">
-            {paginated.map((log) => (
-              <tr
-                key={log.id}
-                className="hover:bg-gray-50 transition-colors"
-              >
-                {/* Timestamp */}
-                <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap">
-                  {log.timestamp}
-                </td>
-
-                {/* Action badge */}
-                <td className="px-5 py-3.5">
-                  <span
-                    className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${getActionStyle(
-                      log.action
-                    )}`}
+            {isLoading
+              ? Array.from({ length: 6 }).map((_, index) => (
+                  <tr key={index}>
+                    <td className="px-5 py-3.5">
+                      <Skeleton className="h-4 w-36" />
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <Skeleton className="h-6 w-28 rounded-md" />
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <Skeleton className="h-4 w-24" />
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <Skeleton className="h-4 w-40" />
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-1">
+                        <Skeleton className="h-4 w-4 rounded-sm" />
+                        <Skeleton className="h-4 w-24" />
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              : paginated.map((log) => (
+                  <tr
+                    key={log.id}
+                    className="hover:bg-gray-50 transition-colors"
                   >
-                    {formatActionLabel(log.action)}
-                  </span>
-                </td>
+                    {/* Timestamp */}
+                    <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap">
+                      {log.timestamp}
+                    </td>
 
-                {/* Entity */}
-                <td className="px-5 py-3.5 text-sm text-gray-700">
-                  {log.entity}
-                </td>
+                    {/* Action badge */}
+                    <td className="px-5 py-3.5">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${getActionStyle(
+                          log.action
+                        )}`}
+                      >
+                        {formatActionLabel(log.action)}
+                      </span>
+                    </td>
 
-                {/* Actor */}
-                <td className="px-5 py-3.5 text-sm text-gray-700">
-                  {log.actor}
-                </td>
+                    {/* Entity */}
+                    <td className="px-5 py-3.5 text-sm text-gray-700">
+                      {log.entity}
+                    </td>
 
-                {/* Details */}
-                <td className="px-5 py-3.5">
-                  <button className="flex items-center gap-1 text-sm font-semibold text-[#e53935] hover:text-[#c62828] transition-colors">
-                    <ChevronRight className="w-3.5 h-3.5" />
-                    {log.details}
-                  </button>
-                </td>
-              </tr>
-            ))}
+                    {/* Actor */}
+                    <td className="px-5 py-3.5 text-sm text-gray-700">
+                      {log.actor}
+                    </td>
+
+                    {/* Details */}
+                    <td className="px-5 py-3.5">
+                      <button className="flex items-center gap-1 text-sm font-semibold text-[#e53935] hover:text-[#c62828] transition-colors">
+                        <ChevronRight className="w-3.5 h-3.5" />
+                        {log.details}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
 
             {!isLoading && paginated.length === 0 && (
               <tr>

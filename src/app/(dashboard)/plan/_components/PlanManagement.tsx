@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
@@ -122,6 +124,36 @@ function PlanCard({
           >
             <Trash2 className="w-4 h-4" />
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PlanCardSkeleton() {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm h-full flex flex-col">
+      <div className="bg-[#CC1F1F] px-5 py-4">
+        <Skeleton className="h-4 w-24 bg-white/30" />
+        <Skeleton className="h-8 w-28 mt-2 bg-white/30" />
+      </div>
+      <div className="px-5 py-4 flex flex-col flex-1">
+        <div className="flex items-center gap-2 mb-3">
+          <Skeleton className="h-4 w-4 rounded-full" />
+          <Skeleton className="h-4 w-36" />
+        </div>
+        <div className="mb-2">
+          <Skeleton className="h-4 w-28" />
+        </div>
+        <div className="mb-4 min-h-[92px] space-y-2">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+          <Skeleton className="h-4 w-4/6" />
+        </div>
+        <div className="flex items-center gap-2 mt-auto">
+          <Skeleton className="h-9 flex-1 rounded-lg" />
+          <Skeleton className="h-9 w-10 rounded-lg" />
         </div>
       </div>
     </div>
@@ -396,6 +428,7 @@ export default function PlanManagement() {
   const token = session?.user?.accessToken;
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>("plans");
+  const [roleFilter, setRoleFilter] = useState<"all" | "LANDLORD" | "AGENT">("all");
   const [modalMode, setModalMode] = useState<null | "create" | string>(null);
   const [form, setForm] = useState(emptyForm);
   const [deleteModal, setDeleteModal] = useState<{
@@ -404,10 +437,11 @@ export default function PlanManagement() {
     name: string;
   }>({ isOpen: false, id: null, name: "" });
 
-  const { data: getPlan, refetch } = useQuery({
-    queryKey: ["plan"],
+  const { data: getPlan, refetch, isLoading } = useQuery({
+    queryKey: ["plan", roleFilter],
     queryFn: async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/plans`);
+      const roleQuery = roleFilter === "all" ? "" : `?role=${roleFilter}`;
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/plans${roleQuery}`);
       const json = await res.json();
       if (!res.ok || !json?.status) {
         throw new Error(json?.message || "Failed to fetch plans");
@@ -619,6 +653,21 @@ export default function PlanManagement() {
               <RefreshCw className="w-4 h-4" />
               Refresh
             </button>
+            <Select
+              value={roleFilter}
+              onValueChange={(value) =>
+                setRoleFilter(value as "all" | "LANDLORD" | "AGENT")
+              }
+            >
+              <SelectTrigger className="w-[160px] h-10 text-sm text-gray-600 border-gray-200">
+                <SelectValue placeholder="All Roles" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="LANDLORD">LANDLORD</SelectItem>
+                <SelectItem value="AGENT">AGENT</SelectItem>
+              </SelectContent>
+            </Select>
             {modalMode === null && (
               <button
                 onClick={openCreate}
@@ -645,16 +694,20 @@ export default function PlanManagement() {
         {/* ── Plans Grid ── */}
         {activeTab === "plans" && (
           <div className="grid grid-cols-3 gap-5">
-            {plans
-              .sort((a, b) => a.displayOrder - b.displayOrder)
-              .map((plan) => (
-                <PlanCard
-                  key={plan.id}
-                  plan={plan}
-                  onEdit={openEdit}
-                  onDelete={handleDelete}
-                />
-              ))}
+            {isLoading
+              ? Array.from({ length: 6 }).map((_, index) => (
+                  <PlanCardSkeleton key={index} />
+                ))
+              : plans
+                  .sort((a, b) => a.displayOrder - b.displayOrder)
+                  .map((plan) => (
+                    <PlanCard
+                      key={plan.id}
+                      plan={plan}
+                      onEdit={openEdit}
+                      onDelete={handleDelete}
+                    />
+                  ))}
           </div>
         )}
 

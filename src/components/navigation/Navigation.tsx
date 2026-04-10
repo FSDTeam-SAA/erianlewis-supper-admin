@@ -21,17 +21,22 @@ const navItems = [
   { label: "Commend Center", icon: Activity, href: "/" },
   { label: "Island", icon: Map, href: "/island" },
   { label: "Accounts", icon: Users, href: "/accounts" },
+  { label: "Category", icon: Map, href: "/category" },
   { label: "Listing", icon: Building2, href: "/listing" },
   { label: "Reviews", icon: Star, href: "/reviews" },
   { label: "Billing", icon: DollarSign, href: "/billing" },
   { label: "Manage Plans", icon: CreditCard, href: "/plan" },
   { label: "Management Inquires", icon: Mail, href: "/inquires" },
   { label: "Audit Logs", icon: FileText, href: "/audit-logs" },
-  { label: "Communication Log", icon: MessageSquare, href: "/communication-log" },
+  {
+    label: "Communication Log",
+    icon: MessageSquare,
+    href: "/communication-log",
+  },
   { label: "Security", icon: MessageSquare, href: "/security" },
   { label: "Data Export", icon: MessageSquare, href: "/data-export" },
-    { label: "Legal Documents", icon: MessageSquare, href: "/legal-documents" },
-
+  { label: "Legal Documents", icon: MessageSquare, href: "/legal-documents" },
+  { label: "Onboarding", icon: MessageSquare, href: "/onboarding" },
 ];
 
 function Navigation() {
@@ -39,9 +44,9 @@ function Navigation() {
   const pathname = usePathname();
 
   return (
-    <nav>
+    <nav className="sticky top-0 z-50 bg-white">
       {/* Nav Tabs (FULL WIDTH BORDER) */}
-      <div className="bg-white border-b-2 border-t border-[#E5E7EB] mt-5">
+      <div className="bg-white border-b-2 border-t border-[#E5E7EB]">
         <div className="container mx-auto px-2 flex items-center">
           <div
             ref={scrollRef}
@@ -58,13 +63,13 @@ function Navigation() {
                     "flex items-center gap-3 px-4 h-[88px] text-base font-medium whitespace-nowrap border-b-2 transition-all duration-150",
                     isActive
                       ? "border-red-500 text-red-500 bg-[#FEF2F2]"
-                      : "border-transparent text-gray-500"
+                      : "border-transparent text-gray-500",
                   )}
                 >
                   <Icon
                     className={cn(
                       "w-5 h-5",
-                      isActive ? "text-red-500" : "text-gray-400"
+                      isActive ? "text-red-500" : "text-gray-400",
                     )}
                   />
                   {label}

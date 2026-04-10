@@ -56,17 +56,20 @@ function Page() {
   });
 
   if (status === "loading") return <DashboardSkeleton />;
-  if (isLoading) return <DashboardSkeleton />;
 
   return (
     <div className="container mx-auto">
-      <CommendCenter summary={commandCenterData?.summary} listings={commandCenterData?.listings} />
-      <AbandonedSignups
-        subscriptionBreakdown={commandCenterData?.subscriptionBreakdown}
-        listingsByIsland={commandCenterData?.listingsByIsland}
-        accountsByIsland={commandCenterData?.accountsByIsland}
-      />
-      <RecentPlatformActivity recentActivity={commandCenterData?.recentActivity} />
+      <CommendCenter summary={commandCenterData?.summary} listings={commandCenterData?.listings} isLoading={isLoading} />
+      {!isLoading && (
+        <>
+          <AbandonedSignups
+            subscriptionBreakdown={commandCenterData?.subscriptionBreakdown}
+            listingsByIsland={commandCenterData?.listingsByIsland}
+            accountsByIsland={commandCenterData?.accountsByIsland}
+          />
+          <RecentPlatformActivity recentActivity={commandCenterData?.recentActivity} />
+        </>
+      )}
     </div>
   );
 }

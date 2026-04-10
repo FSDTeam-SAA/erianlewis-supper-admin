@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,6 +91,7 @@ function StatusBadge({ status }: { status: ListingStatus }) {
 }
 
 function ListingPage() {
+  const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
   const token = session?.user?.accessToken;
   const queryClient = useQueryClient();
@@ -456,7 +458,16 @@ function ListingPage() {
 
                   <td className="px-4 py-4">
                     <div className="flex items-center justify-center gap-3">
-                      <button className="text-sm font-semibold text-blue-500 hover:text-blue-700 transition-colors">
+                      <button
+                        onClick={() =>
+                          router.push(
+                            `/listing/edit-listing/${listing.id}?listingType=${
+                              listing.type === "Sale" ? "buy" : "rent"
+                            }`
+                          )
+                        }
+                        className="text-sm font-semibold text-blue-500 hover:text-blue-700 transition-colors"
+                      >
                         Edit
                       </button>
                       <button

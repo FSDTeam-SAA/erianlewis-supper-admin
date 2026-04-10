@@ -5,6 +5,7 @@ import { Search, Eye, EyeOff, Trash2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -439,14 +440,44 @@ function ReviewPage() {
 
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr>
-                <td
-                  colSpan={8}
-                  className="px-4 py-12 text-center text-sm text-gray-400"
-                >
-                  Loading reviews...
-                </td>
-              </tr>
+              Array.from({ length: 6 }).map((_, index) => (
+                <tr key={index}>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-4 w-4 rounded-sm" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-4 w-32" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-4 w-44 mb-2" />
+                    <Skeleton className="h-3 w-20" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-4 w-40" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Skeleton key={i} className="h-4 w-4 rounded-sm" />
+                      ))}
+                      <Skeleton className="h-4 w-8 ml-1" />
+                    </div>
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-4 w-48" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="flex items-center justify-center gap-2">
+                      <Skeleton className="h-8 w-16 rounded-lg" />
+                      <Skeleton className="h-8 w-24 rounded-lg" />
+                      <Skeleton className="h-8 w-16 rounded-lg" />
+                    </div>
+                  </td>
+                </tr>
+              ))
             ) : (
               filtered.map((listing) => (
                 <tr

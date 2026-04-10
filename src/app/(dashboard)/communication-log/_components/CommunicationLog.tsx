@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import { Search, ChevronRight, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -322,37 +323,60 @@ function CommunicationLog() {
           </thead>
 
           <tbody className="divide-y divide-gray-100">
-            {paginated.map((log) => (
-              <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                {/* WHEN */}
-                <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap">
-                  {log.timestamp}
-                </td>
+            {isLoading
+              ? Array.from({ length: 6 }).map((_, index) => (
+                  <tr key={index}>
+                    <td className="px-5 py-3.5">
+                      <Skeleton className="h-4 w-36" />
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <Skeleton className="h-6 w-28 rounded-md" />
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <Skeleton className="h-4 w-48" />
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <Skeleton className="h-4 w-32" />
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-1">
+                        <Skeleton className="h-4 w-4 rounded-sm" />
+                        <Skeleton className="h-4 w-28" />
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              : paginated.map((log) => (
+                  <tr key={log.id} className="hover:bg-gray-50 transition-colors">
+                    {/* WHEN */}
+                    <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap">
+                      {log.timestamp}
+                    </td>
 
-                {/* TYPE badge */}
-                <td className="px-5 py-3.5">
-                  <TypeBadge type={log.type} />
-                </td>
+                    {/* TYPE badge */}
+                    <td className="px-5 py-3.5">
+                      <TypeBadge type={log.type} />
+                    </td>
 
-                {/* WHO */}
-                <td className="px-5 py-3.5 text-sm text-gray-700">
-                  {log.who}
-                </td>
+                    {/* WHO */}
+                    <td className="px-5 py-3.5 text-sm text-gray-700">
+                      {log.who}
+                    </td>
 
-                {/* SUBJECT */}
-                <td className="px-5 py-3.5 text-sm text-gray-700">
-                  {log.subject}
-                </td>
+                    {/* SUBJECT */}
+                    <td className="px-5 py-3.5 text-sm text-gray-700">
+                      {log.subject}
+                    </td>
 
-                {/* MESSAGE */}
-                <td className="px-5 py-3.5">
-                  <button className="flex items-center gap-1 text-sm font-semibold text-[#e53935] hover:text-[#c62828] transition-colors">
-                    <ChevronRight className="w-3.5 h-3.5" />
-                    {log.message}
-                  </button>
-                </td>
-              </tr>
-            ))}
+                    {/* MESSAGE */}
+                    <td className="px-5 py-3.5">
+                      <button className="flex items-center gap-1 text-sm font-semibold text-[#e53935] hover:text-[#c62828] transition-colors">
+                        <ChevronRight className="w-3.5 h-3.5" />
+                        {log.message}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
 
             {!isLoading && paginated.length === 0 && (
               <tr>
