@@ -1,0 +1,24 @@
+name: Deploy Admin
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy Admin
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            source ~/.bashrc
+            cd /var/www/admin
+            git fetch origin main
+            git reset --hard origin/main
+            npm ci
+            npm run build
+            pm2 restart admin || pm2 start npm --name admin -- start
