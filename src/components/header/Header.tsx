@@ -93,9 +93,9 @@ function Header() {
           {/* Title & Subtitle */}
             <div className="flex flex-col">
               <h1 className="text-white font-bold text-[32px] leading-[100%]">
-                Superadmin Control Centerss
+                Superadmin Control Center
 
-                
+
               </h1>
               <div className="mt-6">
                 <p className="text-white text-base mt-0.5 font-normal leading-[100%]">
