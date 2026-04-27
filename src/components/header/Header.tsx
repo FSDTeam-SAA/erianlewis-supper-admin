@@ -81,7 +81,7 @@ function Header() {
 
   return (
     <>
-      <header className="w-full" style={{ background: "linear-gradient(90deg, #DB2626 0%, #B91C1C 100%)" }}>
+      <header className="w-full" style={{ background: "linear-gradient(90deg, #4F46E5 0%, #7C3AED 100%)" }}>
         <div className="h-[159px] flex items-center justify-between container mx-auto">
         {/* Left Section */}
           <div className="flex items-center gap-4">

@@ -90,6 +90,32 @@ function StatusBadge({ status }: { status: ListingStatus }) {
   );
 }
 
+// ✅ নতুন কম্পোনেন্ট — শুধু এটুকু যোগ হয়েছে
+const MAX_CHARS = 60;
+
+function TruncatedText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (text.length <= MAX_CHARS) {
+    return <p className="text-xs text-[#7A7A7A] mt-0.5">{text}</p>;
+  }
+
+  return (
+    <p className="text-xs text-[#7A7A7A] mt-0.5">
+      {expanded ? text : `${text.slice(0, MAX_CHARS)}...`}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setExpanded((prev) => !prev);
+        }}
+        className="ml-1 text-blue-500 hover:text-blue-700 font-medium whitespace-nowrap"
+      >
+        {expanded ? "Read Less" : "Read More"}
+      </button>
+    </p>
+  );
+}
+
 function ListingPage() {
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
@@ -437,7 +463,8 @@ function ListingPage() {
 
                   <td className="px-4 py-4">
                     <p className="text-sm font-semibold text-[#1C1C1C]">{listing.property}</p>
-                    <p className="text-xs text-[#7A7A7A] mt-0.5">{listing.subtitle}</p>
+                    {/* ✅ শুধু এই লাইনটা বদলেছে */}
+                    <TruncatedText text={listing.subtitle} />
                   </td>
 
                   <td className="px-4 py-4 text-sm font-medium text-[#1C1C1C]">{listing.island}</td>

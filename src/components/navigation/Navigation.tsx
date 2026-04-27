@@ -28,11 +28,7 @@ const navItems = [
   { label: "Manage Plans", icon: CreditCard, href: "/plan" },
   { label: "Management Inquires", icon: Mail, href: "/inquires" },
   { label: "Audit Logs", icon: FileText, href: "/audit-logs" },
-  {
-    label: "Communication Log",
-    icon: MessageSquare,
-    href: "/communication-log",
-  },
+  { label: "Communication Log", icon: MessageSquare, href: "/communication-log" },
   { label: "Security", icon: MessageSquare, href: "/security" },
   { label: "Data Export", icon: MessageSquare, href: "/data-export" },
   { label: "Legal Documents", icon: MessageSquare, href: "/legal-documents" },
@@ -45,7 +41,6 @@ function Navigation() {
 
   return (
     <nav className="sticky top-0 z-50 bg-white">
-      {/* Nav Tabs (FULL WIDTH BORDER) */}
       <div className="bg-white border-b-2 border-t border-[#E5E7EB]">
         <div className="container mx-auto px-2 flex items-center">
           <div
@@ -62,14 +57,14 @@ function Navigation() {
                   className={cn(
                     "flex items-center gap-3 px-4 h-[88px] text-base font-medium whitespace-nowrap border-b-2 transition-all duration-150",
                     isActive
-                      ? "border-red-500 text-red-500 bg-[#FEF2F2]"
-                      : "border-transparent text-gray-500",
+                      ? "border-sky-700 text-sky-700 bg-sky-50"
+                      : "border-transparent text-gray-500"
                   )}
                 >
                   <Icon
                     className={cn(
                       "w-5 h-5",
-                      isActive ? "text-red-500" : "text-gray-400",
+                      isActive ? "text-sky-700" : "text-gray-400"
                     )}
                   />
                   {label}

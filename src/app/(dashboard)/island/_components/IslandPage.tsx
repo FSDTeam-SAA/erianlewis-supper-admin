@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Map, Building2, Users, Search, Plus, X } from "lucide-react";
+import { Map, Building2, Users, Search, Plus, X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
+import { IslandEditDialog } from "./IslandEditDialog";
 
 interface IslandItem {
   _id: string;
@@ -70,9 +71,11 @@ interface ListingItem {
 function IslandCard({
   island,
   onViewListings,
+  onDeleteIsland,
 }: {
   island: IslandItem;
   onViewListings: (island: IslandItem) => void;
+  onDeleteIsland: (island: IslandItem) => void;
 }) {
   return (
     <div className="rounded-[12px] border border-gray-200 bg-white">
@@ -106,7 +109,7 @@ function IslandCard({
           <p className="text-2xl font-medium text-red-500">{island.totalActivity}</p>
         </div> */}
 
-        <div className="border-t border-gray-100 pt-3">
+        <div className="border-t border-gray-100 pt-3 flex items-center gap-2">
           {/* <Button variant="outline" size="sm" className="text-base text-black hover:bg-gray-50 bg-[#F3F4F6] h-[40px]">
             View Accounts
           </Button> */}
@@ -114,9 +117,71 @@ function IslandCard({
             variant="outline"
             size="sm"
             onClick={() => onViewListings(island)}
-            className="text-base text-black hover:bg-gray-50 bg-[#F3F4F6] h-[40px] !w-full"
+            className="text-base text-black hover:bg-gray-50 bg-[#F3F4F6] h-[40px] flex-1"
           >
             View Listings
+          </Button>
+          <IslandEditDialog id={island?._id} />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onDeleteIsland(island)}
+            className="text-[#DC2626] hover:bg-red-50 bg-[#F3F4F6] h-[40px] w-[40px] p-0 flex-shrink-0"
+            aria-label="Delete island"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeleteIslandModal({
+  island,
+  isOpen,
+  isDeleting,
+  onClose,
+  onConfirm,
+}: {
+  island: IslandItem | null;
+  isOpen: boolean;
+  isDeleting: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  if (!isOpen || !island) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-5">
+          <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-red-50 text-[#DC2626]">
+            <Trash2 className="h-5 w-5" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-950">Delete island?</h2>
+          <p className="mt-2 text-sm leading-6 text-gray-500">
+            Are you sure you want to delete <span className="font-medium text-gray-800">{island.name}</span>? This action cannot be undone.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-end gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={isDeleting}
+            className="h-10 px-5 text-sm text-gray-700"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={onConfirm}
+            disabled={isDeleting}
+            className="h-10 bg-[#DC2626] px-5 text-sm text-white hover:bg-red-600"
+          >
+            {isDeleting ? "Deleting..." : "Delete"}
           </Button>
         </div>
       </div>
@@ -231,7 +296,7 @@ function ListingModal({
                     </div>
                     <div className="rounded-lg bg-white border border-gray-100 p-3">
                       <p className="text-xs text-gray-500">Listing ID</p>
-                      <p className="text-sm font-semibold text-gray-900 truncate">{listing._id}</p>
+                      <p className="break-all text-sm font-semibold text-gray-900">{listing._id}</p>
                     </div>
                   </div>
 
@@ -298,6 +363,7 @@ function IslandPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newIslandName, setNewIslandName] = useState("");
   const [selectedIsland, setSelectedIsland] = useState<IslandItem | null>(null);
+  const [deleteModalIsland, setDeleteModalIsland] = useState<IslandItem | null>(null);
   const [isListingModalOpen, setIsListingModalOpen] = useState(false);
 
   const { data: islandData, isLoading: isIslandLoading } = useQuery({
@@ -413,6 +479,32 @@ function IslandPage() {
     setIsListingModalOpen(true);
   };
 
+  const deleteIsland = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/islands/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.status) {
+        throw new Error(json?.message || "Failed to delete island");
+      }
+      return json;
+    },
+    onSuccess: () => {
+      toast.success("Island deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["island-data"] });
+      queryClient.invalidateQueries({ queryKey: ["island-overview"] });
+      setDeleteModalIsland(null);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   return (
     <div className="min-h-screen bg-gray-50 container mx-auto py-8">
       <div className="flex items-start gap-3 mb-6">
@@ -501,10 +593,27 @@ function IslandPage() {
       ) : (
         <div className="grid grid-cols-3 gap-4">
           {filteredIslands.map((island) => (
-            <IslandCard key={island._id} island={island} onViewListings={openListings} />
+            <IslandCard
+              key={island._id}
+              island={island}
+              onViewListings={openListings}
+              onDeleteIsland={setDeleteModalIsland}
+            />
           ))}
         </div>
       )}
+
+      <DeleteIslandModal
+        island={deleteModalIsland}
+        isOpen={!!deleteModalIsland}
+        isDeleting={deleteIsland.isPending}
+        onClose={() => setDeleteModalIsland(null)}
+        onConfirm={() => {
+          if (deleteModalIsland?._id) {
+            deleteIsland.mutate(deleteModalIsland._id);
+          }
+        }}
+      />
 
       <ListingModal
         isOpen={isListingModalOpen}

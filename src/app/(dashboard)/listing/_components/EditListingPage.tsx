@@ -191,7 +191,7 @@ export default function EditListingPage() {
           className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to backend
+          Back to listings
         </Link>
         <Link
           href="/"
