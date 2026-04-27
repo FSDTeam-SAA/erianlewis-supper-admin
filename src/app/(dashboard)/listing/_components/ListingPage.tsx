@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
+import { Search, Trash2, Power, PowerOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -50,11 +50,7 @@ interface ApiProperty {
     cityTown?: string;
     island?: { _id: string; name: string } | null;
   };
-  createdBy?: {
-    firstName?: string;
-    lastName?: string;
-    email?: string;
-  } | null;
+  createdBy?: { firstName?: string; lastName?: string; email?: string } | null;
   listingType?: "rent" | "buy";
   status?: "active" | "disabled";
   views?: number;
@@ -81,34 +77,29 @@ function StatusBadge({ status }: { status: ListingStatus }) {
     active: "bg-green-100 text-green-700",
     disabled: "bg-gray-100 text-gray-500",
   };
-  const label = status === "disabled" ? "suspended" : status;
-
   return (
-    <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${styles[status]}`}>
-      {label}
+    <span
+      className={`px-3 py-1.5 rounded-full text-sm font-medium ${styles[status]}`}
+    >
+      {status === "disabled" ? "suspended" : status}
     </span>
   );
 }
 
-// ✅ নতুন কম্পোনেন্ট — শুধু এটুকু যোগ হয়েছে
 const MAX_CHARS = 60;
-
 function TruncatedText({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false);
-
-  if (text.length <= MAX_CHARS) {
+  if (text.length <= MAX_CHARS)
     return <p className="text-xs text-[#7A7A7A] mt-0.5">{text}</p>;
-  }
-
   return (
     <p className="text-xs text-[#7A7A7A] mt-0.5">
       {expanded ? text : `${text.slice(0, MAX_CHARS)}...`}
       <button
         onClick={(e) => {
           e.stopPropagation();
-          setExpanded((prev) => !prev);
+          setExpanded(!expanded);
         }}
-        className="ml-1 text-blue-500 hover:text-blue-700 font-medium whitespace-nowrap"
+        className="ml-1 text-blue-500 hover:text-blue-700 font-medium"
       >
         {expanded ? "Read Less" : "Read More"}
       </button>
@@ -130,138 +121,188 @@ function ListingPage() {
   const [perPage, setPerPage] = useState("50");
   const [selected, setSelected] = useState<string[]>([]);
 
+  // Modals state
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     id: string | null;
     name: string;
   }>({ isOpen: false, id: null, name: "" });
+  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
 
   const { data: islandsData } = useQuery({
     queryKey: ["island-options", token],
-    enabled: sessionStatus === "authenticated" && !!token,
+    enabled: !!token,
     queryFn: async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/islands`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/islands`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
       const json = await res.json();
-      if (!res.ok || !json?.status) {
-        throw new Error(json?.message || "Failed to fetch islands");
-      }
       return (json?.data?.islands || []) as IslandOption[];
     },
   });
 
   const { data: listingData, isLoading } = useQuery({
-    queryKey: ["listing-data", token, page, perPage, search, island, status, type],
+    queryKey: [
+      "listing-data",
+      token,
+      page,
+      perPage,
+      search,
+      island,
+      status,
+      type,
+    ],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      params.set("page", String(page));
-      params.set("limit", perPage);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: perPage,
+      });
       if (search.trim()) params.set("search", search.trim());
       if (island !== "all") params.set("island", island);
       if (status !== "all") params.set("status", status);
       if (type !== "all") params.set("listingType", type);
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/rental-properties?${params.toString()}`, {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/rental-properties?${params.toString()}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
         },
-      });
+      );
       const json = await res.json();
-      if (!res.ok || !json?.status) {
-        throw new Error(json?.message || "Failed to fetch listings");
-      }
       return json.data as ListingsResponse;
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (listingId: string) => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/rental-properties/admin/${listingId}`, {
-        method: "DELETE",
+  // Bulk Mutation
+  const bulkMutation = useMutation({
+    mutationFn: async ({
+      action,
+      ids,
+    }: {
+      action: "enable" | "disable" | "delete";
+      ids: string[];
+    }) => {
+      const method = action === "delete" ? "DELETE" : "PUT";
+      const url = `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/rental-properties/admin/bulk/${action}`;
+
+      const res = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ ids }),
       });
       const json = await res.json();
-      if (!res.ok || !json?.status) {
-        throw new Error(json?.message || "Failed to delete listing");
-      }
+      if (!res.ok || !json?.status)
+        throw new Error(json?.message || "Operation failed");
       return json;
     },
-    onSuccess: () => {
-      toast.success("Listing deleted successfully");
+    onSuccess: (_, variables) => {
+      toast.success(`Selected listings ${variables.action}d successfully`);
+      setSelected([]);
+      setBulkDeleteModalOpen(false);
       queryClient.invalidateQueries({ queryKey: ["listing-data"] });
     },
-    onError: (error: Error) => {
-      toast.error(error.message);
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // Single Suspend/Unsuspend Mutation
+  const toggleStatusMutation = useMutation({
+    mutationFn: async ({
+      id,
+      currentStatus,
+    }: {
+      id: string;
+      currentStatus: ListingStatus;
+    }) => {
+      const action = currentStatus === "active" ? "disable" : "enable";
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/rental-properties/admin/${id}/${action}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || "Failed to update status");
+      return json;
+    },
+    onSuccess: (_, variables) => {
+      const actionLabel =
+        variables.currentStatus === "active" ? "Suspended" : "Unsuspended";
+      toast.success(`Listing ${actionLabel} successfully`);
+      queryClient.invalidateQueries({ queryKey: ["listing-data"] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/rental-properties/admin/${id}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+      if (!res.ok) throw new Error("Delete failed");
+    },
+    onSuccess: () => {
+      toast.success("Deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["listing-data"] });
     },
   });
 
   const listings: Listing[] = useMemo(() => {
-    return (listingData?.properties || []).map((item) => {
-      const ownerName = `${item?.createdBy?.firstName || ""} ${item?.createdBy?.lastName || ""}`.trim() || "N/A";
-      const islandName =
-        item?.address?.island?.name ||
-        item?.location?.island?.name ||
-        item?.address?.cityTown ||
-        item?.location?.cityTown ||
-        "N/A";
-      const listingTypeLabel = item?.listingType === "buy" ? "Sale" : "Rental";
-      const currency = item?.basicInformation?.preferredCurrency || "";
-      const amount = item?.basicInformation?.monthlyRent ?? 0;
-
-      return {
-        id: item._id,
-        property: item?.basicInformation?.propertyTitle || "N/A",
-        subtitle: item?.basicInformation?.details || "No details",
-        island: islandName,
-        ownerName,
-        ownerEmail: item?.createdBy?.email || "N/A",
-        type: listingTypeLabel,
-        price: `${currency} ${amount}`.trim(),
-        status: item?.status === "disabled" ? "disabled" : "active",
-        views: item?.views ?? 0,
-      };
-    });
+    return (listingData?.properties || []).map((item) => ({
+      id: item._id,
+      property: item?.basicInformation?.propertyTitle || "N/A",
+      subtitle: item?.basicInformation?.details || "No details",
+      island:
+        item?.address?.island?.name || item?.location?.island?.name || "N/A",
+      ownerName:
+        `${item?.createdBy?.firstName || ""} ${item?.createdBy?.lastName || ""}`.trim(),
+      ownerEmail: item?.createdBy?.email || "N/A",
+      type: item?.listingType === "buy" ? "Sale" : "Rental",
+      price: `${item?.basicInformation?.preferredCurrency || ""} ${item?.basicInformation?.monthlyRent ?? 0}`,
+      status: item?.status === "disabled" ? "disabled" : "active",
+      views: item?.views ?? 0,
+    }));
   }, [listingData?.properties]);
 
-  const openDeleteModal = (listing: Listing) => {
-    setDeleteModal({ isOpen: true, id: listing.id, name: listing.property });
-  };
-
-  const handleDeleteConfirm = (id: string | number) => {
-    deleteMutation.mutate(String(id));
-    setSelected((prev) => prev.filter((s) => s !== String(id)));
-  };
-
-  const allSelected = listings.length > 0 && listings.every((a) => selected.includes(a.id));
-
-  const toggleAll = () => {
-    if (allSelected) setSelected([]);
-    else setSelected(listings.map((a) => a.id));
-  };
-
-  const toggleOne = (id: string) => {
-    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
-
-  const paginationInfo = listingData?.paginationInfo;
-  const totalData = paginationInfo?.totalData ?? 0;
-  const currentPage = paginationInfo?.currentPage ?? page;
-  const totalPages = paginationInfo?.totalPages ?? 1;
+  const allSelected =
+    listings.length > 0 && listings.every((a) => selected.includes(a.id));
+  const toggleAll = () =>
+    setSelected(allSelected ? [] : listings.map((a) => a.id));
+  const toggleOne = (id: string) =>
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
 
   return (
     <div className="container mx-auto py-8">
+      {/* Search & Filters */}
       <div className="bg-white rounded-[12px] border border-gray-200 shadow-[1px_1px_4px_0px_#00000040] p-6 mb-4">
         <h1 className="text-2xl font-semibold text-gray-900">Listings</h1>
         <p className="text-sm text-gray-400 mt-1 mb-5">
-          {totalData} total &nbsp;•&nbsp; Page {currentPage} of {totalPages}
+          {listingData?.paginationInfo.totalData ?? 0} total &nbsp;•&nbsp; Page{" "}
+          {listingData?.paginationInfo.currentPage ?? 1}
         </p>
 
         <div className="flex items-end gap-3 mb-5">
@@ -276,26 +317,25 @@ function ListingPage() {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                className="pl-9 h-11 text-sm border-gray-200 focus-visible:ring-1 focus-visible:ring-gray-300"
+                className="pl-9 h-11 border-gray-200 focus-visible:ring-1"
               />
             </div>
           </div>
-
           <div className="w-48">
             <label className="text-xs text-gray-500 mb-1 block">Island</label>
             <Select
               value={island}
-              onValueChange={(value) => {
-                setIsland(value);
+              onValueChange={(v) => {
+                setIsland(v);
                 setPage(1);
               }}
             >
-              <SelectTrigger className="!h-11 w-full text-sm border-gray-200">
+              <SelectTrigger className="!h-11 border-gray-200">
                 <SelectValue placeholder="All Islands" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Islands</SelectItem>
-                {(islandsData || []).map((item) => (
+                {islandsData?.map((item) => (
                   <SelectItem key={item._id} value={item._id}>
                     {item.name}
                   </SelectItem>
@@ -303,17 +343,16 @@ function ListingPage() {
               </SelectContent>
             </Select>
           </div>
-
           <div className="w-48">
             <label className="text-xs text-gray-500 mb-1 block">Status</label>
             <Select
               value={status}
-              onValueChange={(value) => {
-                setStatus(value);
+              onValueChange={(v) => {
+                setStatus(v);
                 setPage(1);
               }}
             >
-              <SelectTrigger className="!h-11 w-full text-sm border-gray-200">
+              <SelectTrigger className="!h-11 border-gray-200">
                 <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
               <SelectContent>
@@ -323,17 +362,16 @@ function ListingPage() {
               </SelectContent>
             </Select>
           </div>
-
           <div className="w-48">
             <label className="text-xs text-gray-500 mb-1 block">Type</label>
             <Select
               value={type}
-              onValueChange={(value) => {
-                setType(value);
+              onValueChange={(v) => {
+                setType(v);
                 setPage(1);
               }}
             >
-              <SelectTrigger className="!h-11 w-full text-sm border-gray-200">
+              <SelectTrigger className="!h-11 border-gray-200">
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
@@ -346,41 +384,43 @@ function ListingPage() {
         </div>
 
         <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-400">Showing up to {perPage} per page</p>
+          <p className="text-sm text-gray-400">
+            Showing up to {perPage} per page
+          </p>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500">Per page</span>
             <Select
               value={perPage}
-              onValueChange={(value) => {
-                setPerPage(value);
+              onValueChange={(v) => {
+                setPerPage(v);
                 setPage(1);
               }}
             >
-              <SelectTrigger className="!h-9 w-20 text-sm border-gray-200">
+              <SelectTrigger className="!h-9 w-20 border-gray-200">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="25">25</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
+                {["10", "25", "50", "100"].map((v) => (
+                  <SelectItem key={v} value={v}>
+                    {v}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button
               variant="outline"
               size="sm"
-              disabled={!paginationInfo?.hasPrevPage}
-              onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-              className="!h-9 px-4 text-sm text-gray-500 border-gray-200 hover:bg-gray-50"
+              disabled={!listingData?.paginationInfo.hasPrevPage}
+              onClick={() => setPage((p) => p - 1)}
+              className="border-gray-200 h-9"
             >
               Previous
             </Button>
             <Button
               variant="outline"
               size="sm"
-              disabled={!paginationInfo?.hasNextPage}
-              onClick={() => setPage((prev) => prev + 1)}
-              className="!h-9 px-4 text-sm text-gray-500 border-gray-200 hover:bg-gray-50"
+              disabled={!listingData?.paginationInfo.hasNextPage}
+              onClick={() => setPage((p) => p + 1)}
+              className="border-gray-200 h-9"
             >
               Next
             </Button>
@@ -388,6 +428,65 @@ function ListingPage() {
         </div>
       </div>
 
+      {/* Bulk Action Bar */}
+      {selected.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-3">
+            <Checkbox
+              checked={true}
+              onCheckedChange={() => setSelected([])}
+              className="data-[state=checked]:bg-blue-600"
+            />
+            <span className="text-sm font-semibold text-blue-900">
+              {selected.length} listings selected
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 text-green-600 border-green-200 hover:bg-green-100 gap-2"
+              onClick={() =>
+                bulkMutation.mutate({ action: "enable", ids: selected })
+              }
+              disabled={bulkMutation.isPending}
+            >
+              <Power className="w-4 h-4" /> Enable
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 text-gray-600 border-gray-200 hover:bg-gray-100 gap-2"
+              onClick={() =>
+                bulkMutation.mutate({ action: "disable", ids: selected })
+              }
+              disabled={bulkMutation.isPending}
+            >
+              <PowerOff className="w-4 h-4" /> Disable
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-9 gap-2 bg-red-500 hover:bg-red-600"
+              onClick={() => setBulkDeleteModalOpen(true)}
+              disabled={bulkMutation.isPending}
+            >
+              <Trash2 className="w-4 h-4" /> Delete
+            </Button>
+            <div className="w-[1px] h-6 bg-blue-200 mx-2" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelected([])}
+              className="h-9 w-9 p-0 hover:bg-blue-100"
+            >
+              <X className="w-4 h-4 text-blue-500" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <table className="w-full">
           <thead>
@@ -395,111 +494,115 @@ function ListingPage() {
               <th className="w-10 px-4 py-3">
                 <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
               </th>
-              {["PROPERTY", "ISLAND", "OWNER", "TYPE", "PRICE", "STATUS", "VIEWS", "ACTIONS"].map((col) => (
+              {[
+                "PROPERTY",
+                "ISLAND",
+                "OWNER",
+                "TYPE",
+                "PRICE",
+                "STATUS",
+                "VIEWS",
+                "ACTIONS",
+              ].map((col) => (
                 <th
                   key={col}
-                  className={`px-4 py-3 text-xs font-semibold text-[#8B8B8B] tracking-wide ${col === "ACTIONS" ? "text-center" : "text-left"}`}
+                  className="px-4 py-3 text-xs font-semibold text-[#8B8B8B] text-left tracking-wide"
                 >
                   {col}
                 </th>
               ))}
             </tr>
           </thead>
-
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              Array.from({ length: 6 }).map((_, idx) => (
-                <tr key={`listing-skeleton-${idx}`}>
-                  <td className="px-4 py-4">
-                    <Skeleton className="h-[18px] w-[18px] rounded-sm" />
-                  </td>
-                  <td className="px-4 py-4">
-                    <Skeleton className="h-4 w-40 mb-2" />
-                    <Skeleton className="h-3 w-56" />
-                  </td>
-                  <td className="px-4 py-4">
-                    <Skeleton className="h-4 w-20" />
-                  </td>
-                  <td className="px-4 py-4">
-                    <Skeleton className="h-4 w-28 mb-2" />
-                    <Skeleton className="h-3 w-36" />
-                  </td>
-                  <td className="px-4 py-4">
-                    <Skeleton className="h-4 w-16" />
-                  </td>
-                  <td className="px-4 py-4">
-                    <Skeleton className="h-4 w-20" />
-                  </td>
-                  <td className="px-4 py-4">
-                    <Skeleton className="h-6 w-20 rounded-full" />
-                  </td>
-                  <td className="px-4 py-4">
-                    <Skeleton className="h-4 w-8" />
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex items-center justify-center gap-3">
-                      <Skeleton className="h-4 w-8" />
-                      <Skeleton className="h-4 w-10" />
-                    </div>
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i}>
+                  <td colSpan={9} className="p-4">
+                    <Skeleton className="h-12 w-full" />
                   </td>
                 </tr>
               ))
             ) : listings.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-12 text-center text-sm text-gray-400">
+                <td colSpan={9} className="p-12 text-center text-gray-400">
                   No listings found.
                 </td>
               </tr>
             ) : (
               listings.map((listing) => (
-                <tr key={listing.id} className="hover:bg-gray-50 transition-colors">
+                <tr
+                  key={listing.id}
+                  className="hover:bg-gray-50 transition-colors"
+                >
                   <td className="px-4 py-4">
                     <Checkbox
-                      className="w-[18px] h-[18px]"
                       checked={selected.includes(listing.id)}
                       onCheckedChange={() => toggleOne(listing.id)}
                     />
                   </td>
-
                   <td className="px-4 py-4">
-                    <p className="text-sm font-semibold text-[#1C1C1C]">{listing.property}</p>
-                    {/* ✅ শুধু এই লাইনটা বদলেছে */}
+                    <p className="text-sm font-semibold text-[#1C1C1C]">
+                      {listing.property}
+                    </p>
                     <TruncatedText text={listing.subtitle} />
                   </td>
-
-                  <td className="px-4 py-4 text-sm font-medium text-[#1C1C1C]">{listing.island}</td>
-
-                  <td className="px-4 py-4">
-                    <p className="text-sm font-medium text-[#1C1C1C]">{listing.ownerName}</p>
-                    <p className="text-xs text-[#7A7A7A] mt-0.5">{listing.ownerEmail}</p>
+                  <td className="px-4 py-4 text-sm font-medium text-[#1C1C1C]">
+                    {listing.island}
                   </td>
-
-                  <td className="px-4 py-4 text-sm font-medium text-[#1C1C1C]">{listing.type}</td>
-                  <td className="px-4 py-4 text-sm font-medium text-[#1C1C1C]">{listing.price}</td>
-
+                  <td className="px-4 py-4">
+                    <p className="text-sm font-medium text-[#1C1C1C]">
+                      {listing.ownerName}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {listing.ownerEmail}
+                    </p>
+                  </td>
+                  <td className="px-4 py-4 text-sm font-medium text-[#1C1C1C]">
+                    {listing.type}
+                  </td>
+                  <td className="px-4 py-4 text-sm font-medium text-[#1C1C1C]">
+                    {listing.price}
+                  </td>
                   <td className="px-4 py-4">
                     <StatusBadge status={listing.status} />
                   </td>
-
-                  <td className="px-4 py-4 text-sm font-medium text-[#1C1C1C]">{listing.views}</td>
-
+                  <td className="px-4 py-4 text-sm font-medium text-[#1C1C1C]">
+                    {listing.views}
+                  </td>
                   <td className="px-4 py-4">
-                    <div className="flex items-center justify-center gap-3">
+                    <div className="flex gap-3 justify-center">
+                      {/* Status Toggle Button */}
+                      <button
+                        onClick={() =>
+                          toggleStatusMutation.mutate({
+                            id: listing.id,
+                            currentStatus: listing.status,
+                          })
+                        }
+                        disabled={toggleStatusMutation.isPending}
+                        className={`font-semibold text-sm hover:underline ${listing.status === "active" ? "text-orange-500" : "text-green-600"}`}
+                      >
+                        {listing.status === "active" ? "Suspend" : "Unsuspend"}
+                      </button>
                       <button
                         onClick={() =>
                           router.push(
-                            `/listing/edit-listing/${listing.id}?listingType=${
-                              listing.type === "Sale" ? "buy" : "rent"
-                            }`
+                            `/listing/edit-listing/${listing.id}?listingType=${listing.type === "Sale" ? "buy" : "rent"}`,
                           )
                         }
-                        className="text-sm font-semibold text-blue-500 hover:text-blue-700 transition-colors"
+                        className="text-blue-500 font-semibold text-sm hover:underline"
                       >
                         Edit
                       </button>
                       <button
-                        onClick={() => openDeleteModal(listing)}
-                        className="text-sm font-semibold text-red-500 hover:text-red-700 transition-colors"
+                        onClick={() =>
+                          setDeleteModal({
+                            isOpen: true,
+                            id: listing.id,
+                            name: listing.property,
+                          })
+                        }
+                        className="text-red-500 font-semibold text-sm hover:underline"
                       >
                         Delete
                       </button>
@@ -512,12 +615,26 @@ function ListingPage() {
         </table>
       </div>
 
+      {/* single delete modal */}
       <DeleteListingModal
         isOpen={deleteModal.isOpen}
         listingId={deleteModal.id}
         listingName={deleteModal.name}
         onClose={() => setDeleteModal({ isOpen: false, id: null, name: "" })}
-        onConfirm={handleDeleteConfirm}
+        onConfirm={(id) => {
+          deleteMutation.mutate(String(id));
+        }}
+      />
+
+      {/* bulk delete modal */}
+      <DeleteListingModal
+        isOpen={bulkDeleteModalOpen}
+        listingId="bulk"
+        listingName={`${selected.length} Selected Listings`}
+        onClose={() => setBulkDeleteModalOpen(false)}
+        onConfirm={() =>
+          bulkMutation.mutate({ action: "delete", ids: selected })
+        }
       />
     </div>
   );
