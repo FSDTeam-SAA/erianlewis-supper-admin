@@ -18,6 +18,7 @@ import { DeleteListingModal } from "@/components/modal/DeleteModal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
+import { ViewListingModal } from "./ViewListingModal";
 
 type ListingStatus = "active" | "disabled";
 
@@ -330,7 +331,7 @@ function ListingPage() {
                 setPage(1);
               }}
             >
-              <SelectTrigger className="!h-11 border-gray-200">
+              <SelectTrigger className="!h-11 !w-full border-gray-200">
                 <SelectValue placeholder="All Islands" />
               </SelectTrigger>
               <SelectContent>
@@ -352,7 +353,7 @@ function ListingPage() {
                 setPage(1);
               }}
             >
-              <SelectTrigger className="!h-11 border-gray-200">
+              <SelectTrigger className="!h-11 w-full border-gray-200">
                 <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
               <SelectContent>
@@ -371,7 +372,7 @@ function ListingPage() {
                 setPage(1);
               }}
             >
-              <SelectTrigger className="!h-11 border-gray-200">
+              <SelectTrigger className="!h-11 w-full border-gray-200">
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
@@ -494,6 +495,7 @@ function ListingPage() {
               <th className="w-10 px-4 py-3">
                 <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
               </th>
+
               {[
                 "PROPERTY",
                 "ISLAND",
@@ -506,7 +508,9 @@ function ListingPage() {
               ].map((col) => (
                 <th
                   key={col}
-                  className="px-4 py-3 text-xs font-semibold text-[#8B8B8B] text-left tracking-wide"
+                  className={`px-4 py-3 text-xs font-semibold text-[#8B8B8B] tracking-wide ${
+                    col === "ACTIONS" ? "text-center" : "text-left"
+                  }`}
                 >
                   {col}
                 </th>
@@ -572,6 +576,7 @@ function ListingPage() {
                   <td className="px-4 py-4">
                     <div className="flex gap-3 justify-center">
                       {/* Status Toggle Button */}
+                      <ViewListingModal id={listing?.id} />
                       <button
                         onClick={() =>
                           toggleStatusMutation.mutate({
@@ -586,9 +591,7 @@ function ListingPage() {
                       </button>
                       <button
                         onClick={() =>
-                          router.push(
-                            `/listing/edit-listing/${listing.id}`,
-                          )
+                          router.push(`/listing/edit-listing/${listing.id}`)
                         }
                         className="text-blue-500 font-semibold text-sm hover:underline"
                       >

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
@@ -20,6 +21,7 @@ import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
+import Image from "next/image";
 
 // ── Leaflet Map ───────────────────────────────
 const MapPicker = dynamic(() => import("@/components/mappicker/MapPicker"), {
@@ -802,7 +804,9 @@ export default function EditListingPage() {
                   key={photo.id}
                   className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200 group shadow-sm"
                 >
-                  <img
+                  <Image
+                    width={500}
+                    height={500}
                     src={photo.url}
                     alt={photo.name}
                     className="w-full h-full object-cover"
