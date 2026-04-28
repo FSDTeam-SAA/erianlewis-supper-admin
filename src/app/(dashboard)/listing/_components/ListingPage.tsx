@@ -587,7 +587,7 @@ function ListingPage() {
                       <button
                         onClick={() =>
                           router.push(
-                            `/listing/edit-listing/${listing.id}?listingType=${listing.type === "Sale" ? "buy" : "rent"}`,
+                            `/listing/edit-listing/${listing.id}`,
                           )
                         }
                         className="text-blue-500 font-semibold text-sm hover:underline"
