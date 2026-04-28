@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Search, Eye, EyeOff, Trash2, RefreshCw } from "lucide-react";
+import { Search, Eye, EyeOff, Trash2, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -42,48 +43,13 @@ interface IslandOption {
   name: string;
 }
 
-interface ApiReviewItem {
-  _id: string;
-  rating?: number;
-  comment?: string;
-  status?: ReviewStatus;
-  createdAt?: string;
-  user?: {
-    email?: string;
-  } | null;
-  property?: {
-    basicInformation?: {
-      propertyTitle?: string;
-    };
-    address?: {
-      island?: {
-        _id: string;
-        name: string;
-      } | null;
-    };
-  } | null;
-}
-
-interface ReviewsResponse {
-  reviews: ApiReviewItem[];
-  paginationInfo: {
-    currentPage: number;
-    totalPages: number;
-    totalData: number;
-    hasNextPage: boolean;
-    hasPrevPage: boolean;
-  };
-}
-
 function StatusBadge({ status }: { status: ReviewStatus }) {
   const styles = {
     visible: "bg-[#e8f5e9] text-[#2e7d32] border border-[#c8e6c9]",
     hidden: "bg-[#fce4ec] text-[#c62828] border border-[#f8bbd0]",
   };
-  const labels = {
-    visible: "visible",
-    hidden: "Hidden",
-  };
+  const labels = { visible: "Visible", hidden: "Hidden" };
+
   return (
     <span
       className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${styles[status]}`}
@@ -94,64 +60,70 @@ function StatusBadge({ status }: { status: ReviewStatus }) {
 }
 
 function ReviewPage() {
-  const { data: session, status: sessionStatus } = useSession();
+  const { data: session } = useSession();
   const token = session?.user?.accessToken;
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
-  const [island, setIsland] = useState("all");
-  const [visibility, setVisibility] = useState("all");
+  const [selectedIslandId, setSelectedIslandId] = useState("all");
+  const [visibility, setVisibility] = useState<"all" | "visible" | "hidden">(
+    "all",
+  );
   const [perPage, setPerPage] = useState("50");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<string[]>([]);
+
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [detailsReviewId, setDetailsReviewId] = useState<string | null>(null);
+
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     id: string | null;
     name: string;
   }>({ isOpen: false, id: null, name: "" });
 
-  const apiStatusFilter = visibility === "visible" || visibility === "hidden" ? visibility : "";
-
-  const { data: islandsData } = useQuery({
+  // ==================== Queries ====================
+  const { data: islandsData = [] } = useQuery({
     queryKey: ["island-options", token],
-    enabled: sessionStatus === "authenticated" && !!token,
+    enabled: !!token,
     queryFn: async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/islands`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/islands`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
         },
-      });
+      );
       const json = await res.json();
-      if (!res.ok || !json?.status) {
+      if (!res.ok || !json?.status)
         throw new Error(json?.message || "Failed to fetch islands");
-      }
-      return (json?.data?.islands || []) as IslandOption[];
+      return json.data?.islands || [];
     },
   });
 
-  const { data: reviewData, isLoading, refetch } = useQuery({
-    queryKey: ["review", token, page, perPage, apiStatusFilter],
-    enabled: sessionStatus === "authenticated" && !!token,
+  const {
+    data: reviewData,
+    isLoading,
+    refetch,
+  } = useQuery({
+    queryKey: ["reviews", token, page, perPage, visibility],
+    enabled: !!token,
     queryFn: async () => {
-      const params = new URLSearchParams();
-      params.set("page", String(page));
-      params.set("limit", perPage);
-      if (apiStatusFilter) params.set("status", apiStatusFilter);
-
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/reviews/all?${params.toString()}`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: perPage,
       });
+      if (visibility !== "all") params.set("status", visibility);
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/reviews/all?${params}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       const json = await res.json();
-      if (!res.ok || !json?.status) {
+      if (!res.ok || !json?.status)
         throw new Error(json?.message || "Failed to fetch reviews");
-      }
-      return json.data as ReviewsResponse;
+      return json.data;
     },
   });
 
@@ -159,269 +131,348 @@ function ReviewPage() {
     queryKey: ["review-details", detailsReviewId, token],
     enabled: detailsModalOpen && !!detailsReviewId && !!token,
     queryFn: async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/reviews/${detailsReviewId}`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/reviews/${detailsReviewId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
         },
-      });
+      );
       const json = await res.json();
-      if (!res.ok || !json?.status) {
+      if (!res.ok || !json?.status)
         throw new Error(json?.message || "Failed to fetch review details");
-      }
       return json.data;
     },
   });
 
+  // ==================== Single Mutations ====================
   const hideUnhideMutation = useMutation({
     mutationFn: async (reviewId: string) => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/reviews/${reviewId}/toggle`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/reviews/${reviewId}/toggle`,
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${token}` },
         },
-      });
+      );
       const json = await res.json();
-      if (!res.ok || !json?.status) {
-        throw new Error(json?.message || "Failed to update review visibility");
-      }
+      if (!res.ok || !json?.status)
+        throw new Error(json?.message || "Failed to toggle visibility");
       return json;
     },
     onSuccess: () => {
-      toast.success("Review visibility updated");
-      queryClient.invalidateQueries({ queryKey: ["review"] });
+      toast.success("Visibility updated");
+      queryClient.invalidateQueries({ queryKey: ["reviews"] });
     },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
+    onError: (err: any) => toast.error(err.message),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (reviewId: string) => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/reviews/admin/${reviewId}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/reviews/admin/${reviewId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
         },
-      });
+      );
       const json = await res.json();
-      if (!res.ok || !json?.status) {
+      if (!res.ok || !json?.status)
         throw new Error(json?.message || "Failed to delete review");
-      }
       return json;
     },
     onSuccess: () => {
       toast.success("Review deleted successfully");
-      queryClient.invalidateQueries({ queryKey: ["review"] });
+      queryClient.invalidateQueries({ queryKey: ["reviews"] });
     },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
+    onError: (err: any) => toast.error(err.message),
   });
 
-  const openDeleteModal = (listing: ReviewRow) => {
-    setDeleteModal({ isOpen: true, id: listing.id, name: listing.property });
-  };
+  // ==================== Bulk Mutations ====================
+  const bulkHideMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/reviews/bulk/hide`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ ids }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok || !json?.status)
+        throw new Error(json?.message || "Failed to hide reviews");
+      return json;
+    },
+    onSuccess: () => {
+      toast.success("Selected reviews hidden");
+      queryClient.invalidateQueries({ queryKey: ["reviews"] });
+      setSelected([]);
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
 
-  const handleDeleteConfirm = (id: string | number) => {
-    deleteMutation.mutate(String(id));
-    setSelected((prev) => prev.filter((s) => s !== String(id)));
-  };
+  const bulkUnhideMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/reviews/bulk/unhide`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ ids }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok || !json?.status)
+        throw new Error(json?.message || "Failed to unhide reviews");
+      return json;
+    },
+    onSuccess: () => {
+      toast.success("Selected reviews unhidden");
+      queryClient.invalidateQueries({ queryKey: ["reviews"] });
+      setSelected([]);
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
 
-  const openDetailsModal = (reviewId: string) => {
-    setDetailsReviewId(reviewId);
-    setDetailsModalOpen(true);
-  };
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/reviews/bulk/delete`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ ids }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok || !json?.status)
+        throw new Error(json?.message || "Failed to delete reviews");
+      return json;
+    },
+    onSuccess: () => {
+      toast.success("Selected reviews deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["reviews"] });
+      setSelected([]);
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
 
+  // ==================== Data & Filtering ====================
   const rows: ReviewRow[] = useMemo(() => {
-    return (reviewData?.reviews || []).map((item) => {
-      const createdDate = item.createdAt ? new Date(item.createdAt) : null;
-      const when = createdDate && !Number.isNaN(createdDate.getTime())
-        ? createdDate.toLocaleString("en-GB")
-        : "N/A";
+    return (reviewData?.reviews || []).map((item: any) => {
+      const islandId = item?.property?.address?.island;
+      const islandName =
+        islandsData.find((i: IslandOption) => i._id === islandId)?.name ||
+        "N/A";
 
       return {
         id: item._id,
-        when,
-        property: item?.property?.basicInformation?.propertyTitle || "N/A",
-        island: item?.property?.address?.island?.name || "N/A",
+        when: item.createdAt
+          ? new Date(item.createdAt).toLocaleString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "N/A",
+        property:
+          item?.property?.basicInformation?.propertyTitle ||
+          "Untitled Property",
+        island: islandName,
         ownerEmail: item?.user?.email || "N/A",
         rating: item?.rating ?? 0,
-        comment: item?.comment?.trim() ? item.comment : "–",
+        comment: item?.comment?.trim() || "—",
         status: item?.status === "hidden" ? "hidden" : "visible",
       };
     });
-  }, [reviewData?.reviews]);
+  }, [reviewData?.reviews, islandsData]);
 
-  const filtered = useMemo(() => {
-    return rows.filter((a) => {
-      const searchValue = search.toLowerCase();
-      const matchSearch =
-        a.property.toLowerCase().includes(searchValue) ||
-        a.ownerEmail.toLowerCase().includes(searchValue) ||
-        a.comment.toLowerCase().includes(searchValue);
-      const matchIsland = island === "all" || a.island === (islandsData || []).find((i) => i._id === island)?.name;
-      return matchSearch && matchIsland;
+  const filteredRows = useMemo(() => {
+    const searchLower = search.toLowerCase().trim();
+    return rows.filter((review) => {
+      const matchesSearch =
+        review.property.toLowerCase().includes(searchLower) ||
+        review.ownerEmail.toLowerCase().includes(searchLower) ||
+        review.comment.toLowerCase().includes(searchLower);
+
+      const matchesIsland =
+        selectedIslandId === "all" ||
+        islandsData.find((i: any) => i._id === selectedIslandId)?.name ===
+          review.island;
+
+      return matchesSearch && matchesIsland;
     });
-  }, [rows, search, island, islandsData]);
+  }, [rows, search, selectedIslandId, islandsData]);
 
   const allSelected =
-    filtered.length > 0 && filtered.every((a) => selected.includes(a.id));
+    filteredRows.length > 0 &&
+    filteredRows.every((r) => selected.includes(r.id));
+  const selectedCount = selected.length;
 
-  const toggleAll = () => {
-    if (allSelected) setSelected([]);
-    else setSelected(filtered.map((a) => a.id));
-  };
-
+  const toggleAll = () =>
+    setSelected(allSelected ? [] : filteredRows.map((r) => r.id));
   const toggleOne = (id: string) =>
     setSelected((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
 
-  const paginationInfo = reviewData?.paginationInfo;
-  const totalData = paginationInfo?.totalData ?? 0;
-  const currentPage = paginationInfo?.currentPage ?? page;
-  const totalPages = paginationInfo?.totalPages ?? 1;
+  const openDetailsModal = (id: string) => {
+    setDetailsReviewId(id);
+    setDetailsModalOpen(true);
+  };
+
+  const openDeleteModal = (review: ReviewRow) => {
+    setDeleteModal({ isOpen: true, id: review.id, name: review.property });
+  };
+
+  const handleBulkHide = () => bulkHideMutation.mutate(selected);
+  const handleBulkUnhide = () => bulkUnhideMutation.mutate(selected);
+  const handleBulkDelete = () => bulkDeleteMutation.mutate(selected);
+  const clearSelection = () => setSelected([]);
+
+  const totalData = reviewData?.paginationInfo?.totalData ?? 0;
 
   return (
     <div className="container mx-auto py-8">
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-4">
-        <div className="flex items-start justify-between mb-1">
+      {/* Header & Filters */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
+        <div className="flex justify-between items-start mb-6">
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">
-              Listings (Rentals Only)
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Reviews Management
             </h1>
-            <p className="text-sm text-gray-400 mt-0.5">
-              {totalData} total &nbsp;•&nbsp; Page {currentPage} of {totalPages}
+            <p className="text-sm text-gray-500 mt-1">
+              {totalData} total reviews
             </p>
           </div>
           <button
-            onClick={() => refetch()}
-            className="flex items-center gap-1.5 text-sm text-gray-500 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors"
+            onClick={() => window.location.reload()}
+            className="flex items-center gap-2 text-sm px-4 py-2 border rounded-xl hover:bg-gray-50"
           >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
+            <RefreshCw className="w-4 h-4" /> Refresh
           </button>
         </div>
 
-        <div className="flex items-end gap-3 mt-5 mb-5">
-          <div className="flex-1">
-            <label className="text-xs text-gray-500 mb-1 block">Search</label>
+        <div className="flex flex-wrap gap-4">
+          <div className="flex-1 min-w-[280px]">
+            <label className="text-xs text-gray-500 mb-1.5 block">Search</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
-                placeholder="Property title, address, user email, comment..."
+                placeholder="Property title, email or comment..."
                 value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                className="pl-9 h-10 text-sm border-gray-200 rounded-lg focus-visible:ring-1 focus-visible:ring-gray-300"
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10 h-11"
               />
             </div>
           </div>
 
-          <div className="w-44">
-            <label className="text-xs text-gray-500 mb-1 block">Island</label>
+          <div className="w-52">
+            <label className="text-xs text-gray-500 mb-1.5 block">Island</label>
             <Select
-              value={island}
-              onValueChange={(value) => {
-                setIsland(value);
-                setPage(1);
-              }}
+              value={selectedIslandId}
+              onValueChange={setSelectedIslandId}
             >
-              <SelectTrigger className="!h-10 w-full text-sm border-gray-200 rounded-lg">
+              <SelectTrigger className="!h-11 w-full">
                 <SelectValue placeholder="All Islands" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Islands</SelectItem>
-                {(islandsData || []).map((item) => (
-                  <SelectItem key={item._id} value={item._id}>
-                    {item.name}
+                {islandsData.map((island: IslandOption) => (
+                  <SelectItem key={island._id} value={island._id}>
+                    {island.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          <div className="w-48">
-            <label className="text-xs text-gray-500 mb-1 block">
+          <div className="w-52">
+            <label className="text-xs text-gray-500 mb-1.5 block">
               Visibility
             </label>
             <Select
               value={visibility}
-              onValueChange={(value) => {
-                setVisibility(value);
-                setPage(1);
-              }}
+              onValueChange={(v: any) => setVisibility(v)}
             >
-              <SelectTrigger className="!h-10 w-full text-sm border-gray-200 rounded-lg">
-                <SelectValue placeholder="Visible + Hidden" />
+              <SelectTrigger className="!h-11 w-full">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Visible + Hidden</SelectItem>
+                <SelectItem value="all">All</SelectItem>
                 <SelectItem value="visible">Visible</SelectItem>
                 <SelectItem value="hidden">Hidden</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
+      </div>
 
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-400">Showing up to {perPage} per page</p>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">Per page</span>
-            <Select
-              value={perPage}
-              onValueChange={(value) => {
-                setPerPage(value);
-                setPage(1);
-              }}
+      {/* Bulk Action Bar */}
+      {selectedCount > 0 && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-4 mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium">
+              {selectedCount} reviews selected
+            </span>
+            <button
+              onClick={clearSelection}
+              className="text-gray-500 hover:text-gray-700"
             >
-              <SelectTrigger className="!h-9 w-20 text-sm border-gray-200 rounded-lg">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="25">25</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-              </SelectContent>
-            </Select>
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
             <Button
               variant="outline"
-              size="sm"
-              disabled={!paginationInfo?.hasPrevPage}
-              onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-              className="!h-9 px-4 text-sm text-gray-500 border-gray-200 rounded-lg hover:bg-gray-50"
+              onClick={handleBulkHide}
+              className="flex items-center gap-2"
             >
-              Previous
+              <EyeOff className="w-4 h-4" />
+              Bulk Hide
             </Button>
             <Button
               variant="outline"
-              size="sm"
-              disabled={!paginationInfo?.hasNextPage}
-              onClick={() => setPage((prev) => prev + 1)}
-              className="!h-9 px-4 text-sm text-gray-500 border-gray-200 rounded-lg hover:bg-gray-50"
+              onClick={handleBulkUnhide}
+              className="flex items-center gap-2"
             >
-              Next
+              <Eye className="w-4 h-4" />
+              Bulk Unhide
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleBulkDelete}
+              className="flex items-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              Bulk Delete
             </Button>
           </div>
         </div>
-      </div>
+      )}
 
+      {/* Table */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/80">
-              <th className="w-10 px-4 py-3.5">
+            <tr className="bg-gray-50 border-b">
+              <th className="w-12 px-4 py-4">
                 <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
               </th>
               {[
                 "WHEN",
-                "LISTING",
+                "PROPERTY",
                 "USER",
                 "RATING",
                 "COMMENT",
@@ -430,7 +481,7 @@ function ReviewPage() {
               ].map((col) => (
                 <th
                   key={col}
-                  className={`px-4 py-3.5 text-xs font-semibold text-[#9e9e9e] tracking-wider uppercase ${col === "ACTIONS" ? "text-center" : "text-left"}`}
+                  className="px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
                 >
                   {col}
                 </th>
@@ -440,141 +491,107 @@ function ReviewPage() {
 
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              Array.from({ length: 6 }).map((_, index) => (
-                <tr key={index}>
-                  <td className="px-4 py-4">
-                    <Skeleton className="h-4 w-4 rounded-sm" />
-                  </td>
-                  <td className="px-4 py-4">
-                    <Skeleton className="h-4 w-32" />
-                  </td>
-                  <td className="px-4 py-4">
-                    <Skeleton className="h-4 w-44 mb-2" />
-                    <Skeleton className="h-3 w-20" />
-                  </td>
-                  <td className="px-4 py-4">
-                    <Skeleton className="h-4 w-40" />
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Skeleton key={i} className="h-4 w-4 rounded-sm" />
-                      ))}
-                      <Skeleton className="h-4 w-8 ml-1" />
-                    </div>
-                  </td>
-                  <td className="px-4 py-4">
-                    <Skeleton className="h-4 w-48" />
-                  </td>
-                  <td className="px-4 py-4">
-                    <Skeleton className="h-6 w-20 rounded-full" />
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex items-center justify-center gap-2">
-                      <Skeleton className="h-8 w-16 rounded-lg" />
-                      <Skeleton className="h-8 w-24 rounded-lg" />
-                      <Skeleton className="h-8 w-16 rounded-lg" />
-                    </div>
-                  </td>
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i}>
+                  {Array.from({ length: 8 }).map((_, j) => (
+                    <td key={j} className="px-4 py-5">
+                      <Skeleton className="h-5 w-full" />
+                    </td>
+                  ))}
                 </tr>
               ))
-            ) : (
-              filtered.map((listing) => (
+            ) : filteredRows.length > 0 ? (
+              filteredRows.map((review) => (
                 <tr
-                  key={listing.id}
-                  className="hover:bg-gray-50/60 transition-colors"
+                  key={review.id}
+                  className="hover:bg-gray-50 transition-colors"
                 >
                   <td className="px-4 py-4">
                     <Checkbox
-                      checked={selected.includes(listing.id)}
-                      onCheckedChange={() => toggleOne(listing.id)}
+                      checked={selected.includes(review.id)}
+                      onCheckedChange={() => toggleOne(review.id)}
                     />
                   </td>
-
                   <td className="px-4 py-4 text-sm text-gray-500 whitespace-nowrap">
-                    {listing.when}
+                    {review.when}
                   </td>
-
                   <td className="px-4 py-4">
-                    <p className="text-sm font-semibold text-[#e53935] hover:underline cursor-pointer">
-                      {listing.property}
+                    <p className="font-medium text-gray-900">
+                      {review.property?.length > 20
+                        ? review.property.slice(0, 20) + "..."
+                        : review.property}
                     </p>
-                    <p className="text-xs text-gray-400 mt-0.5">{listing.island}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {review.island}
+                    </p>
                   </td>
-
-                  <td className="px-4 py-4">
-                    <p className="text-sm text-gray-700">{listing.ownerEmail}</p>
+                  <td className="px-4 py-4 text-sm text-gray-700">
+                    {review.ownerEmail}
                   </td>
-
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-1">
                       {[1, 2, 3, 4, 5].map((star) => (
                         <svg
                           key={star}
-                          className={`w-4 h-4 ${star <= listing.rating ? "text-amber-400 fill-amber-400" : "text-gray-200 fill-gray-200"}`}
+                          className={`w-4 h-4 ${star <= review.rating ? "text-amber-400 fill-current" : "text-gray-200"}`}
                           viewBox="0 0 20 20"
                         >
                           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                         </svg>
                       ))}
-                      <span className="text-sm text-gray-600 ml-1">{listing.rating}/5</span>
+                      <span className="ml-2 text-sm font-medium">
+                        {review.rating}/5
+                      </span>
                     </div>
                   </td>
-
-                  <td className="px-4 py-4 text-sm text-gray-400">{listing.comment}</td>
-
-                  <td className="px-4 py-4">
-                    <StatusBadge status={listing.status} />
+                  <td className="px-4 py-4 text-sm text-gray-600 max-w-xs">
+                    <div className="line-clamp-2 leading-relaxed">
+                      {review.comment?.length > 30
+                        ? review.comment.slice(0, 30) + "..."
+                        : review.comment}
+                    </div>
                   </td>
-
+                  <td className="px-4 py-4">
+                    <StatusBadge status={review.status} />
+                  </td>
                   <td className="px-4 py-4">
                     <div className="flex items-center justify-center gap-2">
-                      {listing.status === "hidden" ? (
-                        <button
-                          onClick={() => hideUnhideMutation.mutate(listing.id)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          Unhide
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => hideUnhideMutation.mutate(listing.id)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-                        >
-                          <EyeOff className="w-3.5 h-3.5" />
-                          Hide
-                        </button>
-                      )}
-
                       <button
-                        onClick={() => openDetailsModal(listing.id)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                        onClick={() => hideUnhideMutation.mutate(review.id)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border hover:bg-gray-50"
                       >
-                        <Eye className="w-3.5 h-3.5" />
-                        View details
+                        {review.status === "hidden" ? (
+                          <>
+                            <Eye className="w-4 h-4" /> Unhide
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="w-4 h-4" /> Hide
+                          </>
+                        )}
                       </button>
 
                       <button
-                        onClick={() => openDeleteModal(listing)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#e53935] text-xs font-medium text-white hover:bg-[#c62828] transition-colors"
+                        onClick={() => openDetailsModal(review.id)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border hover:bg-gray-50"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete
+                        <Eye className="w-4 h-4" /> View
+                      </button>
+
+                      <button
+                        onClick={() => openDeleteModal(review)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" /> Delete
                       </button>
                     </div>
                   </td>
                 </tr>
               ))
-            )}
-
-            {!isLoading && filtered.length === 0 && (
+            ) : (
               <tr>
-                <td
-                  colSpan={8}
-                  className="px-4 py-12 text-center text-sm text-gray-400"
-                >
-                  No listings found.
+                <td colSpan={8} className="py-20 text-center text-gray-400">
+                  No reviews found
                 </td>
               </tr>
             )}
@@ -582,71 +599,92 @@ function ReviewPage() {
         </table>
       </div>
 
+      {/* Modals */}
       <DeleteListingModal
         isOpen={deleteModal.isOpen}
         listingId={deleteModal.id}
         listingName={deleteModal.name}
         onClose={() => setDeleteModal({ isOpen: false, id: null, name: "" })}
-        onConfirm={handleDeleteConfirm}
+        onConfirm={(id) => {
+          if (id) deleteMutation.mutate(String(id));
+        }}
       />
 
       <Dialog open={detailsModalOpen} onOpenChange={setDetailsModalOpen}>
-        <DialogContent className="max-w-[520px]">
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto p-8">
           <DialogHeader>
-            <DialogTitle>Review Details</DialogTitle>
+            <DialogTitle className="text-2xl">Review Details</DialogTitle>
           </DialogHeader>
 
           {isDetailsLoading ? (
-            <p className="text-sm text-gray-500">Loading details...</p>
+            <p className="py-12 text-center text-lg">Loading details...</p>
           ) : (
-            <div className="space-y-3 text-sm">
+            <div className="space-y-8 text-[15px]">
               <div>
-                <p className="text-xs text-gray-500">Property</p>
-                <p className="font-medium text-gray-900">
-                  {reviewDetails?.property?.basicInformation?.propertyTitle || "N/A"}
+                <p className="text-sm text-gray-500 mb-1">Property</p>
+                <p className="font-semibold text-xl leading-tight">
+                  {reviewDetails?.property?.basicInformation?.propertyTitle ||
+                    "N/A"}
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-8">
                 <div>
-                  <p className="text-xs text-gray-500">User</p>
-                  <p className="font-medium text-gray-900">
-                    {reviewDetails?.user?.firstName || ""} {reviewDetails?.user?.lastName || ""}
+                  <p className="text-sm text-gray-500">User Name</p>
+                  <p className="font-medium text-lg mt-1">
+                    {reviewDetails?.user?.firstName}{" "}
+                    {reviewDetails?.user?.lastName}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Email</p>
-                  <p className="font-medium text-gray-900">{reviewDetails?.user?.email || "N/A"}</p>
+                  <p className="text-sm text-gray-500">Email</p>
+                  <p className="font-medium text-lg mt-1">
+                    {reviewDetails?.user?.email || "N/A"}
+                  </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-8">
                 <div>
-                  <p className="text-xs text-gray-500">Rating</p>
-                  <p className="font-medium text-gray-900">{reviewDetails?.rating ?? 0}/5</p>
+                  <p className="text-sm text-gray-500">Rating</p>
+                  <p className="font-semibold text-3xl mt-1">
+                    {reviewDetails?.rating ?? 0}/5
+                  </p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Status</p>
-                  <p className="font-medium text-gray-900 capitalize">{reviewDetails?.status || "N/A"}</p>
+                  <p className="text-sm text-gray-500">Status</p>
+                  <div className="mt-2">
+                    <StatusBadge status={reviewDetails?.status || "visible"} />
+                  </div>
                 </div>
               </div>
 
               <div>
-                <p className="text-xs text-gray-500">Comment</p>
-                <p className="font-medium text-gray-900">{reviewDetails?.comment || "—"}</p>
+                <p className="text-sm text-gray-500 mb-2">Comment</p>
+                <div className="bg-gray-50 border border-gray-100 rounded-xl p-5 text-[15.5px] leading-relaxed whitespace-pre-wrap">
+                  {reviewDetails?.comment || "—"}
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-8 text-sm">
                 <div>
-                  <p className="text-xs text-gray-500">Created At</p>
-                  <p className="font-medium text-gray-900">
-                    {reviewDetails?.createdAt ? new Date(reviewDetails.createdAt).toLocaleString("en-GB") : "N/A"}
+                  <p className="text-gray-500">Created At</p>
+                  <p className="mt-1 font-medium">
+                    {reviewDetails?.createdAt
+                      ? new Date(reviewDetails.createdAt).toLocaleString(
+                          "en-GB",
+                        )
+                      : "N/A"}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Updated At</p>
-                  <p className="font-medium text-gray-900">
-                    {reviewDetails?.updatedAt ? new Date(reviewDetails.updatedAt).toLocaleString("en-GB") : "N/A"}
+                  <p className="text-gray-500">Updated At</p>
+                  <p className="mt-1 font-medium">
+                    {reviewDetails?.updatedAt
+                      ? new Date(reviewDetails.updatedAt).toLocaleString(
+                          "en-GB",
+                        )
+                      : "N/A"}
                   </p>
                 </div>
               </div>
