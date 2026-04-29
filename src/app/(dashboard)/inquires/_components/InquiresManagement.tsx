@@ -5,13 +5,12 @@ import {
   RefreshCw,
   Mail,
   Phone,
-  Home,
   Save,
   CheckCircle,
   Send,
   MessageSquare,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
+// import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -242,7 +241,7 @@ function InquiresManagement() {
                     Customer Message
                   </p>
                   <p className="text-sm text-gray-700 leading-relaxed italic">
-                    "{selected.message || "No message provided."}"
+                    {selected.message || "No message provided."}
                   </p>
                 </div>
               </div>

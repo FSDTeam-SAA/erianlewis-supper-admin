@@ -1,18 +1,19 @@
 "use client";
 
-import React, { useState } from "react";
-import { X } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, Search } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useSession } from "next-auth/react";
+} from "../ui/select";
 
 interface UserOption {
   _id: string;
@@ -32,23 +33,27 @@ export function CreateSecurityModal({ isOpen, onClose, onConfirm }: Props) {
   const token = session?.user?.accessToken;
 
   const [userId, setUserId] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [flagType, setFlagType] = useState("suspicious_activity");
   const [severity, setSeverity] = useState("medium");
   const [description, setDescription] = useState("");
+  const [showResults, setShowResults] = useState(false);
 
-  const { data: userOptions = [] } = useQuery({
-    queryKey: ["security-flag-users", token],
+  // Fetch All Users initially + Search Users
+  const { data: userOptions = [], isLoading: isUsersLoading } = useQuery({
+    queryKey: ["security-flag-users", token, searchTerm],
     enabled: isOpen && sessionStatus === "authenticated" && !!token,
     queryFn: async () => {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/security-flags/search-users?search=a`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const url = searchTerm.trim()
+        ? `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/security-flags/search-users?search=${encodeURIComponent(searchTerm.trim())}`
+        : `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/security-flags/search-users`; // No search = all users
+
+      const res = await fetch(url, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       const json = await res.json();
       if (!res.ok || !json?.status) {
@@ -59,21 +64,31 @@ export function CreateSecurityModal({ isOpen, onClose, onConfirm }: Props) {
     },
   });
 
+  // Show results when search term exists or on initial load
+  useEffect(() => {
+    if (isOpen) {
+      setShowResults(true);
+    }
+  }, [isOpen]);
+
   const addSecurityMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/security-flags`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/security-flags`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            userId,
+            flagType,
+            severity,
+            description,
+          }),
         },
-        body: JSON.stringify({
-          userId,
-          flagType,
-          severity,
-          description,
-        }),
-      });
+      );
 
       const json = await res.json();
       if (!res.ok || !json?.status) {
@@ -84,19 +99,27 @@ export function CreateSecurityModal({ isOpen, onClose, onConfirm }: Props) {
     },
     onSuccess: () => {
       setUserId("");
+      setSearchTerm("");
       setFlagType("suspicious_activity");
       setSeverity("medium");
       setDescription("");
+      setShowResults(false);
       onConfirm();
     },
   });
 
-  if (!isOpen) return null;
+  const handleUserSelect = (selectedUserId: string) => {
+    setUserId(selectedUserId);
+    setSearchTerm(""); // Clear search after selection
+    setShowResults(false);
+  };
 
   const handleSubmit = () => {
     if (!userId) return;
     addSecurityMutation.mutate();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -119,34 +142,83 @@ export function CreateSecurityModal({ isOpen, onClose, onConfirm }: Props) {
           </button>
         </div>
 
-        {/* User Email / Name */}
+        {/* User Search Section */}
         <div className="mt-5 mb-1">
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             User Email / Name
           </label>
-          <Select value={userId} onValueChange={setUserId}>
-            <SelectTrigger className="!h-10 w-full text-sm border-gray-200">
-              <SelectValue placeholder="user@example.com" />
-            </SelectTrigger>
-            <SelectContent>
-              {userOptions.map((user) => {
-                const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim();
-                const label = `${fullName || "N/A"} - ${user.email || "N/A"}`;
-                return (
-                  <SelectItem key={user._id} value={user._id}>
-                    {label}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Search by name or email..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                if (!userId) setShowResults(true); // Show results while typing
+              }}
+              className="pl-10 h-10 text-sm border-gray-200"
+            />
+          </div>
+
+          {/* Results List */}
+          {showResults && (
+            <div className="mt-2 max-h-60 overflow-auto border border-gray-200 rounded-lg bg-white shadow-sm">
+              {isUsersLoading ? (
+                <div className="p-4 text-sm text-gray-500">
+                  Loading users...
+                </div>
+              ) : userOptions.length > 0 ? (
+                userOptions.map((user) => {
+                  const fullName =
+                    `${user.firstName || ""} ${user.lastName || ""}`.trim();
+                  const label = `${fullName || "N/A"} - ${user.email || "N/A"}`;
+
+                  return (
+                    <div
+                      key={user._id}
+                      onClick={() => handleUserSelect(user._id)}
+                      className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 text-sm"
+                    >
+                      {label}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="p-4 text-sm text-gray-500">No users found</div>
+              )}
+            </div>
+          )}
+
+          {/* Selected User */}
+          {userId && (
+            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
+              <div className="text-sm text-green-700">
+                Selected:{" "}
+                <span className="font-medium">
+                  {userOptions.find((u) => u._id === userId)?.email || "User"}
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setUserId("");
+                  setSearchTerm("");
+                }}
+                className="text-red-500 hover:text-red-600 text-xs font-medium"
+              >
+                Change
+              </button>
+            </div>
+          )}
+
           <p className="text-xs text-gray-400 mt-1">
-            We resolve this using the Accounts search endpoint.
+            Initially all users are shown. Type to search.
           </p>
         </div>
 
         {/* Flag Type + Severity */}
-        <div className="grid grid-cols-2 gap-4 mt-4">
+        <div className="grid grid-cols-2 gap-4 mt-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Flag Type
@@ -209,9 +281,9 @@ export function CreateSecurityModal({ isOpen, onClose, onConfirm }: Props) {
           <button
             onClick={handleSubmit}
             disabled={!userId || addSecurityMutation.isPending}
-            className="px-6 h-10 text-sm font-medium text-white bg-[#e53935] hover:bg-[#c62828] rounded-lg transition-colors"
+            className="px-6 h-10 text-sm font-medium text-white bg-[#e53935] hover:bg-[#c62828] rounded-lg transition-colors disabled:opacity-70"
           >
-            Create Flag
+            {addSecurityMutation.isPending ? "Creating..." : "Create Flag"}
           </button>
         </div>
       </div>

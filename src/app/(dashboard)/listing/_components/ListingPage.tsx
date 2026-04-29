@@ -110,7 +110,7 @@ function TruncatedText({ text }: { text: string }) {
 
 function ListingPage() {
   const router = useRouter();
-  const { data: session, status: sessionStatus } = useSession();
+  const { data: session } = useSession();
   const token = session?.user?.accessToken;
   const queryClient = useQueryClient();
 

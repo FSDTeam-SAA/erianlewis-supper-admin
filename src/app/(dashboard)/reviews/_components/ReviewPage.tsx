@@ -69,8 +69,8 @@ function ReviewPage() {
   const [visibility, setVisibility] = useState<"all" | "visible" | "hidden">(
     "all",
   );
-  const [perPage, setPerPage] = useState("50");
-  const [page, setPage] = useState(1);
+  const [perPage] = useState("50");
+  const [page] = useState(1);
   const [selected, setSelected] = useState<string[]>([]);
 
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
@@ -103,7 +103,6 @@ function ReviewPage() {
   const {
     data: reviewData,
     isLoading,
-    refetch,
   } = useQuery({
     queryKey: ["reviews", token, page, perPage, visibility],
     enabled: !!token,
