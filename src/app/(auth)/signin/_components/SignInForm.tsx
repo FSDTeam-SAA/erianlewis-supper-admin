@@ -70,11 +70,11 @@ const SignInForm = () => {
             <Shield className="w-8 h-8 text-white" strokeWidth={1.8} />
 
             {/* Texts */}
-            <div className="flex flex-col gap-5">
+            <div className="flex flex-col">
               <p className="text-white text-[18px] font-medium leading-[120%]">
                 Sign in to continue
               </p>
-              <p className="text-white text-[24px] font-semibold leading-[120%]">
+              <p className="text-white text-[24px] font-semibold leading-[160%]">
                 Superadmin
               </p>
             </div>
