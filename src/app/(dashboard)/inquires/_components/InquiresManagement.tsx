@@ -5,19 +5,13 @@ import {
   RefreshCw,
   Mail,
   Phone,
-  Home,
   Save,
   CheckCircle,
+  Send,
+  MessageSquare,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
+// import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
@@ -35,7 +29,6 @@ interface InquiryListItem {
   updatedAt?: string;
   property?: {
     basicInformation?: { propertyTitle?: string };
-    location?: { island?: string | { _id?: string; name?: string } | null };
   } | null;
   replies?: Array<{
     _id: string;
@@ -47,19 +40,11 @@ interface InquiryListItem {
     _id: string;
     note: string;
     addedAt?: string;
-    addedBy?: { firstName?: string; lastName?: string } | null;
   }>;
 }
 
 interface InquiriesResponse {
   inquiries: InquiryListItem[];
-  paginationInfo: {
-    currentPage: number;
-    totalPages: number;
-    totalData: number;
-    hasNextPage: boolean;
-    hasPrevPage: boolean;
-  };
 }
 
 function StatusBadge({ status }: { status: InquiryStatus }) {
@@ -68,25 +53,22 @@ function StatusBadge({ status }: { status: InquiryStatus }) {
     replied: "bg-blue-100 text-blue-600",
     closed: "bg-gray-100 text-gray-500",
   };
-  const labels: Record<InquiryStatus, string> = {
-    new: "New",
-    replied: "Replied",
-    closed: "Closed",
-  };
   return (
     <span
       className={`text-xs font-semibold px-2.5 py-1 rounded-full ${styles[status]}`}
     >
-      {labels[status]}
+      {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
   );
 }
 
 function InfoBox({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="border border-gray-200 rounded-xl px-4 py-3">
-      <p className="text-xs text-gray-400 mb-1">{label}</p>
-      <p className="text-sm font-semibold text-gray-800">{value}</p>
+    <div className="border border-gray-100 bg-gray-50/50 rounded-xl px-4 py-3">
+      <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1 font-bold">
+        {label}
+      </p>
+      <p className="text-sm font-medium text-gray-800">{value}</p>
     </div>
   );
 }
@@ -96,251 +78,288 @@ function InquiresManagement() {
   const token = session?.user?.accessToken;
   const queryClient = useQueryClient();
 
-  const [notifyEmail, setNotifyEmail] = useState(
-    "erianlewisbusiness@gmail.com"
-  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [noteText, setNoteText] = useState("");
+  const [replyText, setReplyText] = useState("");
 
   const { data: allInquires, refetch } = useQuery({
     queryKey: ["all-inquires", token],
     enabled: sessionStatus === "authenticated" && !!token,
     queryFn: async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/inquiries/admin/all`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/inquiries/admin/all`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
         },
-      });
+      );
       const json = await res.json();
-      if (!res.ok || !json?.status) {
-        throw new Error(json?.message || "Failed to fetch inquiries");
-      }
       return json.data as InquiriesResponse;
     },
   });
 
-  const inquiries = useMemo(() => allInquires?.inquiries || [], [allInquires?.inquiries]);
+  const inquiries = useMemo(() => allInquires?.inquiries || [], [allInquires]);
 
   useEffect(() => {
-    if (!selectedId && inquiries.length > 0) {
-      setSelectedId(inquiries[0]._id);
-    }
+    if (!selectedId && inquiries.length > 0) setSelectedId(inquiries[0]._id);
   }, [inquiries, selectedId]);
 
   const selected = useMemo(
     () => inquiries.find((i) => i._id === selectedId) ?? null,
-    [inquiries, selectedId]
+    [inquiries, selectedId],
   );
 
-  const replyMutation = useMutation({
+  // Mutation for Internal Notes (Save Button)
+  const noteMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedId) throw new Error("No inquiry selected");
-      const note = noteText.trim();
-      if (!note) throw new Error("Please write a note before reply");
-
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/inquiries/admin/${selectedId}/notes`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      if (!noteText.trim()) throw new Error("Please write a note");
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/inquiries/admin/${selectedId}/notes`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ note: noteText }),
         },
-        body: JSON.stringify({ note }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json?.status) {
-        throw new Error(json?.message || "Failed to send reply");
-      }
-      return json;
+      );
+      if (!res.ok) throw new Error("Failed to save note");
+      return res.json();
     },
-    onSuccess: async () => {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+    onSuccess: () => {
+      toast.success("Internal note saved");
       setNoteText("");
-      toast.success("Reply sent successfully");
-      await queryClient.invalidateQueries({ queryKey: ["all-inquires"] });
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
+      queryClient.invalidateQueries({ queryKey: ["all-inquires"] });
     },
   });
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  };
-
-  const selectedStatus = (selected?.status || "new") as InquiryStatus;
-  const selectedCreatedAt = selected?.createdAt
-    ? new Date(selected.createdAt).toLocaleString("en-GB")
-    : "N/A";
-  const selectedUpdatedAt = selected?.updatedAt
-    ? new Date(selected.updatedAt).toLocaleString("en-GB")
-    : "N/A";
-  const propertyTitle = selected?.property?.basicInformation?.propertyTitle || "N/A";
-  const latestReply = selected?.replies?.length
-    ? selected.replies[selected.replies.length - 1]?.message
-    : "";
+  // Mutation for Customer Reply (Reply Button)
+  const replyMutation = useMutation({
+    mutationFn: async () => {
+      if (!replyText.trim()) throw new Error("Please write a reply message");
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/inquiries/${selectedId}/reply`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ message: replyText }),
+        },
+      );
+      if (!res.ok) throw new Error("Failed to send reply");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("Reply sent to customer");
+      setReplyText("");
+      queryClient.invalidateQueries({ queryKey: ["all-inquires"] });
+    },
+  });
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 container mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">
-        Management Inquiries
-      </h1>
-      <p className="text-sm text-gray-400 mb-6">
-        Leads from &quot;Let us list for you&quot; (List Your Property page).
-      </p>
-
-      <div className="bg-white border border-gray-200 rounded-xl px-6 py-5 mb-5 flex items-center justify-between gap-6 shadow-sm">
-        <div>
-          <p className="text-sm font-semibold text-gray-800 mb-1">
-            Notify emails
-          </p>
-          <p className="text-xs text-gray-400">
-            Enter one or more emails (comma separated). We&apos;ll email these
-            when a new inquiry arrives.
-          </p>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <Input
-            value={notifyEmail}
-            onChange={(e) => setNotifyEmail(e.target.value)}
-            className="w-72 h-10 text-sm border-gray-200"
-          />
-          <button className="flex items-center gap-1.5 px-5 h-10 bg-gray-900 hover:bg-black text-white text-sm font-medium rounded-lg transition-colors">
-            <Save className="w-4 h-4" />
-            Save
-          </button>
-        </div>
+    <div className="min-h-screen bg-[#fcfcfd] py-8 container mx-auto">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+          Inquiry Management
+        </h1>
+        <p className="text-sm text-gray-500">
+          Manage property leads and customer communication.
+        </p>
       </div>
 
-      <div className="grid grid-cols-[380px_1fr] gap-5">
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden h-[calc(100vh-220px)] flex flex-col">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-            <p className="text-sm font-semibold text-gray-800">Inquiries</p>
+      <div className="grid grid-cols-[380px_1fr] gap-6">
+        {/* Left Sidebar: Inquiry List */}
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col h-[calc(100vh-200px)]">
+          <div className="p-4 border-b flex justify-between items-center bg-gray-50/50 rounded-t-2xl">
+            <span className="text-sm font-bold text-gray-700">All Leads</span>
             <button
-              onClick={handleRefresh}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              onClick={() => {
+                setRefreshing(true);
+                refetch().then(() => setRefreshing(false));
+              }}
+              className="p-2 hover:bg-white rounded-lg border transition-all shadow-sm"
             >
               <RefreshCw
-                className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`}
+                className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`}
               />
-              Refresh
             </button>
           </div>
-
-          <div className="divide-y divide-gray-100 overflow-y-auto flex-1">
+          <div className="overflow-y-auto flex-1 divide-y divide-gray-50">
             {inquiries.map((inquiry) => (
               <div
                 key={inquiry._id}
                 onClick={() => setSelectedId(inquiry._id)}
-                className={`px-5 py-4 cursor-pointer transition-colors ${
-                  selectedId === inquiry._id
-                    ? "bg-red-50 border-l-4 border-l-red-400"
-                    : "hover:bg-gray-50 border-l-4 border-l-transparent"
-                }`}
+                className={`p-4 cursor-pointer transition-all ${selectedId === inquiry._id ? "bg-blue-50/50 border-r-4 border-blue-500" : "hover:bg-gray-50"}`}
               >
-                <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-sm font-semibold text-gray-900">
+                <div className="flex justify-between items-start mb-2">
+                  <h4 className="text-sm font-bold text-gray-900 truncate w-40">
                     {inquiry.fullName || "N/A"}
-                  </p>
-                  <StatusBadge status={(inquiry.status || "new") as InquiryStatus} />
+                  </h4>
+                  <StatusBadge
+                    status={(inquiry.status || "new") as InquiryStatus}
+                  />
                 </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <Mail className="w-3 h-3 text-gray-400" />
-                    {inquiry.email || "N/A"}
+                <div className="text-xs text-gray-500 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-3 h-3" /> {inquiry.email}
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <Phone className="w-3 h-3 text-gray-400" />
-                    {inquiry.phone || "N/A"}
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <Home className="w-3 h-3 text-gray-400" />
-                    1 Property
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-3 h-3" /> {inquiry.phone}
                   </div>
                 </div>
-                <p className="text-[11px] text-gray-300 mt-2 text-right">
-                  {inquiry.createdAt ? new Date(inquiry.createdAt).toLocaleString("en-GB") : "N/A"}
-                </p>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <p className="text-base font-semibold text-gray-900">Details</p>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Update status + notes so your team stays aligned.
-              </p>
-            </div>
-            <button
-              onClick={() => replyMutation.mutate()}
-              className={`flex items-center gap-1.5 px-5 h-9 text-sm font-medium rounded-lg transition-colors ${
-                saved
-                  ? "bg-green-500 text-white"
-                  : "bg-[#e53935] hover:bg-[#c62828] text-white"
-              }`}
-            >
-              <CheckCircle className="w-4 h-4" />
-              {saved ? "Sent!" : "Reply"}
-            </button>
-          </div>
-
+        {/* Right Content: Details and Actions */}
+        <div className="space-y-6 overflow-y-auto h-[calc(100vh-200px)] pr-2">
           {selected ? (
             <>
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <InfoBox label="Name" value={selected.fullName || "N/A"} />
-                <InfoBox label="Property" value={propertyTitle} />
-                <InfoBox label="Email" value={selected.email || "N/A"} />
-                <InfoBox label="Phone" value={selected.phone || "N/A"} />
-              </div>
-
-              <div className="mb-4">
-                <p className="text-sm font-medium text-gray-700 mb-2">
-                  Status
-                </p>
-                <Select value={selectedStatus}>
-                  <SelectTrigger className="h-11 text-sm border-gray-200 bg-gray-50">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="replied">Replied</SelectItem>
-                    <SelectItem value="closed">Closed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="mb-4">
-                <p className="text-sm font-medium text-gray-700 mb-2">
-                  Internal notes
-                </p>
-                <Textarea
-                  placeholder="Add notes about this lead..."
-                  value={noteText}
-                  onChange={(e) => setNoteText(e.target.value)}
-                  className="min-h-[130px] text-sm border-gray-200 resize-none"
-                />
-                {!!latestReply && (
-                  <p className="text-xs text-gray-400 mt-2">
-                    Last reply: {latestReply}
+              {/* Customer Info Card */}
+              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+                <h3 className="text-lg font-bold mb-4 text-gray-800 border-b pb-2">
+                  Lead Information
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <InfoBox label="Full Name" value={selected.fullName} />
+                  <InfoBox
+                    label="Property Interested"
+                    value={
+                      selected.property?.basicInformation?.propertyTitle ||
+                      "General Inquiry"
+                    }
+                  />
+                  <InfoBox label="Email Address" value={selected.email} />
+                  <InfoBox label="Phone Number" value={selected.phone} />
+                </div>
+                <div className="mt-4 p-4 bg-orange-50 border border-orange-100 rounded-xl">
+                  <p className="text-[10px] font-bold text-orange-400 uppercase mb-1">
+                    Customer Message
                   </p>
-                )}
+                  <p className="text-sm text-gray-700 leading-relaxed italic">
+                    {selected.message || "No message provided."}
+                  </p>
+                </div>
               </div>
 
-              <p className="text-xs text-gray-400">
-                Created: {selectedCreatedAt} · Updated: {selectedUpdatedAt}
-              </p>
+              {/* Action Tabs: Reply and Notes */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Reply Section */}
+                <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col">
+                  <div className="flex items-center gap-2 mb-4">
+                    <MessageSquare className="w-5 h-5 text-blue-500" />
+                    <h3 className="font-bold text-gray-800">
+                      Reply to Customer
+                    </h3>
+                  </div>
+                  <Textarea
+                    placeholder="Type your email response here..."
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    className="flex-1 min-h-[120px] mb-4 bg-gray-50 focus:bg-white transition-all border-gray-200"
+                  />
+                  <button
+                    onClick={() => replyMutation.mutate()}
+                    disabled={replyMutation.isPending}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-100"
+                  >
+                    {replyMutation.isPending ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    Send Reply
+                  </button>
+                </div>
+
+                {/* Internal Notes Section */}
+                <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Save className="w-5 h-5 text-emerald-500" />
+                    <h3 className="font-bold text-gray-800">
+                      Internal Admin Notes
+                    </h3>
+                  </div>
+                  <Textarea
+                    placeholder="Private notes for the team..."
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                    className="flex-1 min-h-[120px] mb-4 bg-gray-50 focus:bg-white transition-all border-gray-200"
+                  />
+                  <button
+                    onClick={() => noteMutation.mutate()}
+                    disabled={noteMutation.isPending}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-100"
+                  >
+                    {noteMutation.isPending ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4" />
+                    )}
+                    Save Note
+                  </button>
+                </div>
+              </div>
+
+              {/* History Section: Displaying Last Note/Reply */}
+              {(selected.replies?.length || selected.adminNotes?.length) && (
+                <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 text-gray-400" /> Activity
+                    History
+                  </h3>
+                  <div className="space-y-4">
+                    {selected.replies?.slice(-1).map((r) => (
+                      <div
+                        key={r._id}
+                        className="flex gap-3 items-start p-3 bg-blue-50/30 rounded-lg border border-blue-100"
+                      >
+                        <div className="bg-blue-500 p-1.5 rounded-full mt-1">
+                          <Send className="w-3 h-3 text-white" />
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-bold text-blue-600 uppercase">
+                            Last Sent Reply
+                          </p>
+                          <p className="text-sm text-gray-700">{r.message}</p>
+                          <p className="text-[10px] text-gray-400 mt-1">
+                            {new Date(r.repliedAt).toLocaleString("en-GB")}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                    {selected.adminNotes?.slice(-1).map((n) => (
+                      <div
+                        key={n._id}
+                        className="flex gap-3 items-start p-3 bg-emerald-50/30 rounded-lg border border-emerald-100"
+                      >
+                        <div className="bg-emerald-500 p-1.5 rounded-full mt-1">
+                          <Save className="w-3 h-3 text-white" />
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-bold text-emerald-600 uppercase">
+                            Latest Admin Note
+                          </p>
+                          <p className="text-sm text-gray-700">{n.note}</p>
+                          {n.addedAt && (
+                            <p className="text-[10px] text-gray-400 mt-1">
+                              {new Date(n.addedAt).toLocaleString("en-GB")}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           ) : (
-            <div className="border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-400">
-              Pick an inquiry from list.
+            <div className="h-full flex items-center justify-center border-2 border-dashed border-gray-200 rounded-3xl text-gray-400">
+              Select an inquiry to view details and respond.
             </div>
           )}
         </div>

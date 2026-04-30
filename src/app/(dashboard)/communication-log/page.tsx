@@ -1,12 +1,12 @@
-import React from 'react'
-import CommunicationLog from './_components/CommunicationLog'
+import React, { Suspense } from "react";
+import CommunicationLog from "./_components/CommunicationLog";
 
 function page() {
   return (
-    <div>
-        <CommunicationLog />
-    </div>
-  )
+    <Suspense fallback={<div></div>}>
+      <CommunicationLog />
+    </Suspense>
+  );
 }
 
-export default page
+export default page;

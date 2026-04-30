@@ -96,16 +96,30 @@ function AccountsPage() {
   const [perPage, setPerPage] = useState("50");
   const [selected, setSelected] = useState<string[]>([]);
 
+  const handleClearFilters = () => {
+    setSearch("");
+    setIsland("all");
+    setStatus("all");
+    setRole("all");
+    setPage(1);
+  };
+
+  const isFiltered =
+    search || island !== "all" || status !== "all" || role !== "all";
+
   const { data: islandsData } = useQuery({
     queryKey: ["island-options", token],
     enabled: sessionStatus === "authenticated" && !!token,
     queryFn: async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/islands`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/islands`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
       const json = await res.json();
       if (!res.ok || !json?.status) {
         throw new Error(json?.message || "Failed to fetch islands");
@@ -133,7 +147,7 @@ function AccountsPage() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
       const json = await res.json();
       if (!res.ok || !json?.status) {
@@ -145,13 +159,21 @@ function AccountsPage() {
 
   const tableData: Account[] = useMemo(() => {
     const accounts = accountData?.accounts || [];
-    return accounts.map((item) => {
-      const fullName = `${item.firstName || ""} ${item.lastName || ""}`.trim() || "N/A";
+
+    const mappedAccounts = accounts.map((item) => {
+      const fullName =
+        `${item.firstName || ""} ${item.lastName || ""}`.trim() || "N/A";
+
       const islandName =
         item?.individual?.operatingLocations?.[0]?.name ||
         item?.business?.operatingLocations?.[0]?.name ||
         "N/A";
-      const planName = item?.subscription?.planId?.title || item?.subscription?.planId?.name || "Free";
+
+      const planName =
+        item?.subscription?.planId?.title ||
+        item?.subscription?.planId?.name ||
+        "Free";
+
       const mappedStatus: Account["status"] =
         item.accountStatus === "pending_payment"
           ? "pending_payment"
@@ -172,8 +194,26 @@ function AccountsPage() {
         listings: 0,
       };
     });
-  }, [accountData?.accounts]);
 
+    // ✅ FIX START HERE
+    const searchValue = search.trim().toLowerCase();
+
+    if (!searchValue) return mappedAccounts;
+
+    return mappedAccounts.filter((account) => {
+      const email = account.email?.toLowerCase() || "";
+      const firstName = account.firstName?.toLowerCase() || "";
+      const lastName = account.lastName?.toLowerCase() || "";
+      const fullName = `${firstName} ${lastName}`.trim();
+
+      return (
+        email.includes(searchValue) ||
+        firstName.includes(searchValue) ||
+        lastName.includes(searchValue) ||
+        fullName.includes(searchValue)
+      );
+    });
+  }, [accountData?.accounts, search]);
   const allSelected =
     tableData.length > 0 && tableData.every((a) => selected.includes(a._id));
 
@@ -211,7 +251,7 @@ function AccountsPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
-                placeholder="Email..."
+                placeholder="Email,FirstName,LastName..."
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
@@ -237,11 +277,14 @@ function AccountsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Islands</SelectItem>
-                {(islandsData || []).map((item) => (
-                  <SelectItem key={item._id} value={item._id}>
-                    {item.name}
-                  </SelectItem>
-                ))}
+                {(islandsData || [])
+                  .slice()
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((item) => (
+                    <SelectItem key={item._id} value={item._id}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
@@ -262,7 +305,7 @@ function AccountsPage() {
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="pending_payment">Onboarding</SelectItem>
+                <SelectItem value="pending_payment">Pending</SelectItem>
                 <SelectItem value="suspended">Suspended</SelectItem>
               </SelectContent>
             </Select>
@@ -289,11 +332,26 @@ function AccountsPage() {
               </SelectContent>
             </Select>
           </div>
+
+          {/* ✅ Clear Filters Button */}
+          {isFiltered && (
+            <div className="flex items-end">
+              <Button
+                variant="outline"
+                onClick={handleClearFilters}
+                className="h-11 px-4 text-sm border-gray-200"
+              >
+                Clear Filters
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Pagination row */}
         <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-400">Showing up to {perPage} per page</p>
+          <p className="text-sm text-gray-400">
+            Showing up to {perPage} per page
+          </p>
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-500">Per page</span>
             <Select
@@ -401,60 +459,63 @@ function AccountsPage() {
                   No accounts found.
                 </td>
               </tr>
-            ) : tableData.map((account) => (
-              <tr
-                key={account._id}
-                className="hover:bg-gray-50 transition-colors"
-              >
-                {/* Checkbox */}
-                <td className="px-4 py-4">
-                  <Checkbox  className="w-[20px] h-[20px]"
-                    checked={selected.includes(account._id)}
-                    onCheckedChange={() => toggleOne(account._id)}
-                  />
-                </td>
+            ) : (
+              tableData.map((account) => (
+                <tr
+                  key={account._id}
+                  className="hover:bg-gray-50 transition-colors"
+                >
+                  {/* Checkbox */}
+                  <td className="px-4 py-4">
+                    <Checkbox
+                      className="w-[20px] h-[20px]"
+                      checked={selected.includes(account._id)}
+                      onCheckedChange={() => toggleOne(account._id)}
+                    />
+                  </td>
 
-                {/* Account */}
-                <td className="px-4 py-4">
-                  <p className="text-[20px] leading-[120%] font-semibold text-[#1C1C1C]">
-                    {account.name}
-                  </p>
-                  <p className="text-base leading-[150%] text-[#7A7A7A] mt-0.5">
-                    {account.email}
-                  </p>
-                </td>
+                  {/* Account */}
+                  <td className="px-4 py-4">
+                    <p className="text-[20px] leading-[120%] font-semibold text-[#1C1C1C]">
+                      {account.name}
+                    </p>
+                    <p className="text-base leading-[150%] text-[#7A7A7A] mt-0.5">
+                      {account.email}
+                    </p>
+                  </td>
 
-                {/* Island */}
-                <td className="px-4 py-4 text-[18px] leading-[120%] font-medium text-[#1C1C1C]">
-                  {account.island}
-                </td>
+                  {/* Island */}
+                  <td className="px-4 py-4 text-[18px] leading-[120%] font-medium text-[#1C1C1C]">
+                    {account.island}
+                  </td>
 
-                {/* Role */}
-                <td className="px-4 py-4 text-[17px] leading-[120%] font-medium text-[#1C1C1C]">
-                  {account.role}
-                </td>
+                  {/* Role */}
+                  <td className="px-4 py-4 text-[17px] leading-[120%] font-medium text-[#1C1C1C]">
+                    {account.role}
+                  </td>
 
-                {/* Plan */}
-                <td className="px-4 py-4 text-[18px] leading-[120%] font-medium text-[#1C1C1C]">
-                  {account.plan}
-                </td>
+                  {/* Plan */}
+                  <td className="px-4 py-4 text-[18px] leading-[120%] font-medium text-[#1C1C1C]">
+                    {account.plan}
+                  </td>
 
-                {/* Status */}
-                <td className="px-4 py-4">
-                  <StatusBadge status={account.status} />
-                </td>
+                  {/* Status */}
+                  <td className="px-4 py-4">
+                    <StatusBadge status={account.status} />
+                  </td>
 
-                {/* Listings */}
-                <td className="px-4 py-4 text-[18px] leading-[120%] font-medium text-[#1C1C1C]">
-                  {account.listings}
-                </td>
+                  {/* Listings */}
+                  <td className="px-4 py-4 text-[18px] leading-[120%] font-medium text-[#1C1C1C]">
+                    {account.listings}
+                  </td>
 
-                {/* Actions */}
-                <td className="px-4 py-4">
-                  <AccoutntModal id={account?._id}/>
-                </td>
-              </tr>
-            ))}
+                  {/* Actions */}
+                  <td className="px-4 py-4">
+                    <AccoutntModal id={account?._id} />
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

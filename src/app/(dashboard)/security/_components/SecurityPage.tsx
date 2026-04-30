@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+// import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -272,7 +272,7 @@ function SecurityPage() {
             </div>
 
             {/* User optional */}
-            <div className="w-52">
+            {/* <div className="w-52">
               <label className="text-xs text-gray-500 mb-1 block">
                 User (optional)
               </label>
@@ -284,7 +284,7 @@ function SecurityPage() {
                 }}
                 className="h-10 text-sm border-gray-200"
               />
-            </div>
+            </div> */}
 
             <Button
               variant="outline"

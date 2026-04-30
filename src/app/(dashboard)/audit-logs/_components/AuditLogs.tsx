@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+// import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -14,6 +14,11 @@ import {
 } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
+
+interface IslandOption {
+  _id: string;
+  name: string;
+}
 
 interface AuditLogItem {
   _id: string;
@@ -111,10 +116,30 @@ function AuditLogs() {
 
   const [entityType, setEntityType] = useState("all");
   const [actionType, setActionType] = useState("all");
-  const [island, setIsland] = useState("");
+  const [island, setIsland] = useState(""); // এটি এখনো string (free text) রাখলাম
+  const [selectedIslandId, setSelectedIslandId] = useState(""); // নতুন: Select এর জন্য ID
   const [perPage, setPerPage] = useState("50");
   const [page, setPage] = useState(1);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+
+  // Islands fetch
+  const { data: islandsData = [] } = useQuery({
+    queryKey: ["island-options", token],
+    enabled: !!token,
+    queryFn: async () => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/islands`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+      const json = await res.json();
+      return (json?.data?.islands || []) as IslandOption[];
+    },
+  });
 
   const { data: auditData, isLoading } = useQuery({
     queryKey: ["audit", token, page, perPage, entityType, actionType, island],
@@ -134,7 +159,7 @@ function AuditLogs() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
 
       const json = await res.json();
@@ -156,7 +181,7 @@ function AuditLogs() {
         actor: log.actor?.email || "N/A",
         detailsRaw: log.details || {},
       })),
-    [auditData?.logs]
+    [auditData?.logs],
   );
 
   const totalData = auditData?.paginationInfo?.totalData ?? 0;
@@ -195,11 +220,13 @@ function AuditLogs() {
                 <SelectItem value="property">Listings</SelectItem>
                 <SelectItem value="platform_config">Platform Config</SelectItem>
                 <SelectItem value="security_flag">Security Flags</SelectItem>
-                <SelectItem value="legal_documents">Legal Documents</SelectItem>
                 <SelectItem value="plan">Plan</SelectItem>
+
+                {/* Optional: Baki gulo thakte pare jodi dorkar hoy */}
+                {/* <SelectItem value="legal_documents">Legal Documents</SelectItem>
                 <SelectItem value="island">Island</SelectItem>
                 <SelectItem value="review">Review</SelectItem>
-                <SelectItem value="inquiry">Inquiry</SelectItem>
+                <SelectItem value="inquiry">Inquiry</SelectItem> */}
               </SelectContent>
             </Select>
           </div>
@@ -221,29 +248,72 @@ function AuditLogs() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Actions</SelectItem>
-                {actions.map((a) => (
-                  <SelectItem key={a} value={a}>
-                    {formatActionLabel(a)}
-                  </SelectItem>
-                ))}
+
+                {/* System & Data */}
+                <SelectItem value="data_export">Data Export</SelectItem>
+                <SelectItem value="config_updated">Config Updated</SelectItem>
+
+                {/* Account Management */}
+                <SelectItem value="account_activated">
+                  Account Activated
+                </SelectItem>
+                <SelectItem value="account_suspended">
+                  Account Suspended
+                </SelectItem>
+                <SelectItem value="account_deleted">Account Deleted</SelectItem>
+
+                {/* Listing Management */}
+                <SelectItem value="listing_enabled">Listing Enabled</SelectItem>
+                <SelectItem value="listing_disabled">
+                  Listing Disabled
+                </SelectItem>
+                <SelectItem value="listing_deleted">Listing Deleted</SelectItem>
+
+                {/* Security Flags */}
+                <SelectItem value="security_flag_created">
+                  Security Flag Created
+                </SelectItem>
+                <SelectItem value="security_flag_resolved">
+                  Security Flag Resolved
+                </SelectItem>
+
+                {/* Subscription Plans */}
+                <SelectItem value="plan_created">Plan Created</SelectItem>
+                <SelectItem value="plan_updated">Plan Updated</SelectItem>
+                <SelectItem value="plan_deleted">Plan Deleted</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {/* Island search */}
+          {/* Island Select */}
+          {/* Island Select */}
           <div className="w-full">
             <label className="text-xs text-gray-500 mb-1 block">Island</label>
-            <div className="relative">
-              <Input
-                placeholder="e.g. Aruba"
-                value={island}
-                onChange={(e) => {
-                  setIsland(e.target.value);
-                  setPage(1);
-                }}
-                className="h-11 text-sm border-gray-200 focus-visible:ring-1 focus-visible:ring-gray-300"
-              />
-            </div>
+            <Select
+              value={selectedIslandId || "all"}
+              onValueChange={(value) => {
+                if (value === "all") {
+                  setSelectedIslandId("");
+                  setIsland(""); // island parameter খালি
+                } else {
+                  setSelectedIslandId(value);
+                  setIsland(value); // ← এখানে ID পাঠাবে (সবচেয়ে গুরুত্বপূর্ণ পরিবর্তন)
+                }
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="!h-11 w-full text-sm border-gray-200">
+                <SelectValue placeholder="All Islands" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Islands</SelectItem>
+                {islandsData.map((islandItem) => (
+                  <SelectItem key={islandItem._id} value={islandItem._id}>
+                    {islandItem.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -307,7 +377,7 @@ function AuditLogs() {
                   >
                     {col}
                   </th>
-                )
+                ),
               )}
             </tr>
           </thead>
@@ -337,7 +407,10 @@ function AuditLogs() {
                   </tr>
                 ))
               : paginated.map((log) => (
-                  <tr key={log.id} className="hover:bg-gray-50 transition-colors align-top">
+                  <tr
+                    key={log.id}
+                    className="hover:bg-gray-50 transition-colors align-top"
+                  >
                     {/* Timestamp */}
                     <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap align-top">
                       {log.timestamp}
@@ -347,7 +420,7 @@ function AuditLogs() {
                     <td className="px-5 py-3.5 align-top">
                       <span
                         className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${getActionStyle(
-                          log.action
+                          log.action,
                         )}`}
                       >
                         {formatActionLabel(log.action)}
@@ -370,7 +443,7 @@ function AuditLogs() {
                         <button
                           onClick={() =>
                             setExpandedLogId((current) =>
-                              current === log.id ? null : log.id
+                              current === log.id ? null : log.id,
                             )
                           }
                           className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-[#e53935] hover:text-[#c62828] transition-colors"

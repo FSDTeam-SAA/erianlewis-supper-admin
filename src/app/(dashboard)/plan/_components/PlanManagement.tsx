@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -15,7 +16,13 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
@@ -28,13 +35,14 @@ interface Plan {
   name: string;
   monthlyPrice: number;
   yearlyPrice: number;
-  maxProperties: number | null; // null = unlimited
+  maxProperties: number | null;
   displayOrder: number;
   trialDays: number;
   promoMessage: string;
   displayFeatures: string[];
   freeTier: boolean;
   active: boolean;
+  targetRoles: ("LANDLORD" | "AGENT")[]; // ← এটি যোগ করো
 }
 
 // ── Empty form state ──────────────────────────────────────────────────────────
@@ -51,11 +59,12 @@ const emptyForm = {
   featureInput: "",
   freeTier: false,
   active: false,
+  targetRoles: ["LANDLORD", "AGENT"] as ("LANDLORD" | "AGENT")[],
 };
 
 type Tab = "plans";
 
-// ── Plan Card ─────────────────────────────────────────────────────────────────
+// ── Plan Card (No changes) ───────────────────────────────────────────────────
 function PlanCard({
   plan,
   onEdit,
@@ -67,7 +76,6 @@ function PlanCard({
 }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm h-full flex flex-col">
-      {/* Red header */}
       <div className="bg-[#CC1F1F] px-5 py-4">
         <p className="text-white text-sm font-medium opacity-90">{plan.name}</p>
         <p className="text-white text-2xl font-bold mt-0.5">
@@ -76,7 +84,6 @@ function PlanCard({
         </p>
       </div>
 
-      {/* Body */}
       <div className="px-5 py-4 flex flex-col flex-1">
         <div className="flex items-center gap-2 mb-3">
           <Building2 className="w-4 h-4 text-gray-400" />
@@ -97,10 +104,12 @@ function PlanCard({
               {plan.displayFeatures.map((feature, idx) => (
                 <div
                   key={`${plan.id}-feature-${idx}`}
-                  className="inline-flex items-center gap-2  px-2.5 py-1 mr-1.5"
+                  className="inline-flex items-center gap-2 px-2.5 py-1 mr-1.5"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-[#CC1F1F]" />
-                  <span className="text-sm text-gray-600 leading-5">{feature}</span>
+                  <span className="text-sm text-gray-600 leading-5">
+                    {feature}
+                  </span>
                 </div>
               ))}
             </div>
@@ -109,7 +118,6 @@ function PlanCard({
           )}
         </div>
 
-        {/* Actions */}
         <div className="flex items-center gap-2 mt-auto">
           <button
             onClick={() => onEdit(plan)}
@@ -160,7 +168,7 @@ function PlanCardSkeleton() {
   );
 }
 
-// ── Plan Form Modal ───────────────────────────────────────────────────────────
+// ── Plan Form Modal (Updated with Role Select) ───────────────────────────────
 function PlanModal({
   title,
   form,
@@ -176,7 +184,6 @@ function PlanModal({
 }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-md mb-6 p-6">
-      {/* Modal header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
         <button
@@ -194,7 +201,7 @@ function PlanModal({
             Plan Key (Identifier)
           </label>
           <Input
-            placeholder="eg: Free plan"
+            placeholder="eg: pro_monthly"
             value={form.key}
             onChange={(e) => setForm((f) => ({ ...f, key: e.target.value }))}
             className="h-10 text-sm border-gray-200"
@@ -205,7 +212,7 @@ function PlanModal({
         <div>
           <label className="block text-sm text-gray-600 mb-1">Plan Name</label>
           <Input
-            placeholder="eg: Free plan"
+            placeholder="eg: Professional Plan"
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             className="h-10 text-sm border-gray-200"
@@ -291,13 +298,41 @@ function PlanModal({
             }
             className="h-10 text-sm border-gray-200"
           />
-          <p className="text-xs text-gray-400 mt-1">
-            Optional. If set, Stripe checkout will create a trial.
-          </p>
+        </div>
+
+        {/* Target Roles - NEW FIELD */}
+        <div>
+          <label className="block text-sm text-gray-600 mb-1">
+            Target Roles
+          </label>
+          <Select
+            value={form.targetRoles.join(",")}
+            onValueChange={(value) => {
+              let selected: ("LANDLORD" | "AGENT")[] = [];
+
+              if (value === "LANDLORD") selected = ["LANDLORD"];
+              else if (value === "AGENT") selected = ["AGENT"];
+              else if (value === "LANDLORD,AGENT")
+                selected = ["LANDLORD", "AGENT"];
+
+              setForm((f) => ({ ...f, targetRoles: selected }));
+            }}
+          >
+            <SelectTrigger className="h-10 w-full text-sm border-gray-200">
+              <SelectValue placeholder="Select target roles" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="LANDLORD">LANDLORD</SelectItem>
+              <SelectItem value="AGENT">AGENT</SelectItem>
+              <SelectItem value="LANDLORD,AGENT">
+                Both (LANDLORD & AGENT)
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Features */}
-        <div>
+        <div className="col-span-2">
           <label className="block text-sm text-gray-600 mb-1">Features</label>
           <div className="flex items-center gap-2">
             <Input
@@ -314,7 +349,11 @@ function PlanModal({
                   setForm((f) =>
                     f.features.includes(feature)
                       ? { ...f, featureInput: "" }
-                      : { ...f, features: [...f.features, feature], featureInput: "" }
+                      : {
+                          ...f,
+                          features: [...f.features, feature],
+                          featureInput: "",
+                        },
                   );
                 }
               }}
@@ -328,7 +367,11 @@ function PlanModal({
                 setForm((f) =>
                   f.features.includes(feature)
                     ? { ...f, featureInput: "" }
-                    : { ...f, features: [...f.features, feature], featureInput: "" }
+                    : {
+                        ...f,
+                        features: [...f.features, feature],
+                        featureInput: "",
+                      },
                 );
               }}
               className="h-10 w-10 rounded-md border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 transition-colors"
@@ -369,18 +412,18 @@ function PlanModal({
           <Checkbox
             id="freeTier"
             checked={form.freeTier}
-            onCheckedChange={(v) =>
-              setForm((f) => ({ ...f, freeTier: !!v }))
-            }
+            onCheckedChange={(v) => setForm((f) => ({ ...f, freeTier: !!v }))}
             className="mt-0.5"
           />
           <div>
-            <Label htmlFor="freeTier" className="text-sm text-gray-700 cursor-pointer">
+            <Label
+              htmlFor="freeTier"
+              className="text-sm text-gray-700 cursor-pointer"
+            >
               Free tier plan (no payment required)
             </Label>
             <p className="text-xs text-gray-400 mt-0.5">
-              If enabled, your app can treat this as a free plan (separate from
-              time-limited promos).
+              If enabled, your app can treat this as a free plan.
             </p>
           </div>
         </div>
@@ -389,11 +432,12 @@ function PlanModal({
           <Checkbox
             id="activePlan"
             checked={form.active}
-            onCheckedChange={(v) =>
-              setForm((f) => ({ ...f, active: !!v }))
-            }
+            onCheckedChange={(v) => setForm((f) => ({ ...f, active: !!v }))}
           />
-          <Label htmlFor="activePlan" className="text-sm text-gray-700 cursor-pointer">
+          <Label
+            htmlFor="activePlan"
+            className="text-sm text-gray-700 cursor-pointer"
+          >
             Active Plan
           </Label>
         </div>
@@ -412,8 +456,18 @@ function PlanModal({
           onClick={onSave}
           className="px-6 h-9 text-sm bg-[#CC1F1F] hover:bg-[#b01c1c] text-white flex items-center gap-1.5"
         >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+          <svg
+            className="w-3.5 h-3.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+            />
           </svg>
           Save Plan
         </Button>
@@ -422,42 +476,42 @@ function PlanModal({
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
+// ── Main Component ───────────────────────────────────────────────────────────
 export default function PlanManagement() {
   const { data: session } = useSession();
   const token = session?.user?.accessToken;
   const queryClient = useQueryClient();
+
   const [activeTab, setActiveTab] = useState<Tab>("plans");
-  const [roleFilter, setRoleFilter] = useState<"all" | "LANDLORD" | "AGENT">("all");
+  const [roleFilter, setRoleFilter] = useState<"all" | "LANDLORD" | "AGENT">(
+    "all",
+  );
   const [modalMode, setModalMode] = useState<null | "create" | string>(null);
   const [form, setForm] = useState(emptyForm);
+
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     id: string | null;
     name: string;
   }>({ isOpen: false, id: null, name: "" });
 
-  const { data: getPlan, refetch, isLoading } = useQuery({
+  // Fetch Plans
+  const {
+    data: getPlan,
+    refetch,
+    isLoading,
+  } = useQuery({
     queryKey: ["plan", roleFilter],
     queryFn: async () => {
       const roleQuery = roleFilter === "all" ? "" : `?role=${roleFilter}`;
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/plans${roleQuery}`);
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/plans${roleQuery}`,
+      );
       const json = await res.json();
       if (!res.ok || !json?.status) {
         throw new Error(json?.message || "Failed to fetch plans");
       }
-      return json.data as {
-        items: Array<{
-          _id: string;
-          title: string;
-          name: string;
-          price: number;
-          billingCycle: "free" | "monthly" | "yearly";
-          maxProperties: number | null;
-          displayFeatures?: string[];
-          status: "active" | "inactive";
-        }>;
-      };
+      return json.data as { items: any[] };
     },
   });
 
@@ -466,7 +520,10 @@ export default function PlanManagement() {
       id: item._id,
       key: item.name || "",
       name: item.title || item.name || "N/A",
-      monthlyPrice: item.billingCycle === "monthly" || item.billingCycle === "free" ? Number(item.price || 0) : 0,
+      monthlyPrice:
+        item.billingCycle === "monthly" || item.billingCycle === "free"
+          ? Number(item.price || 0)
+          : 0,
       yearlyPrice: item.billingCycle === "yearly" ? Number(item.price || 0) : 0,
       maxProperties: item.maxProperties ?? null,
       displayOrder: idx,
@@ -475,11 +532,17 @@ export default function PlanManagement() {
       displayFeatures: item.displayFeatures || [],
       freeTier: item.billingCycle === "free",
       active: item.status === "active",
+
+      // ← এখানে targetRoles যোগ করা হয়েছে
+      targetRoles: Array.isArray(item.targetRoles)
+        ? item.targetRoles
+        : ["LANDLORD", "AGENT"], // fallback
     }));
   }, [getPlan?.items]);
-
   const buildPayloadFromForm = () => {
-    const maxProps = form.maxProperties.trim() === "" ? null : Number(form.maxProperties);
+    const maxProps =
+      form.maxProperties.trim() === "" ? null : Number(form.maxProperties);
+
     return {
       title: form.name,
       name: form.key,
@@ -495,7 +558,7 @@ export default function PlanManagement() {
         freePhysicalReturnLabel: !!form.freeTier,
         freePhysicalReceipt: !!form.freeTier,
       },
-      targetRoles: ["LANDLORD", "AGENT"],
+      targetRoles: form.targetRoles, // ← Now dynamic
       maxProperties: maxProps,
       status: form.active ? "active" : "inactive",
     };
@@ -504,24 +567,27 @@ export default function PlanManagement() {
   const addPlanMutaion = useMutation({
     mutationFn: async () => {
       const payload = buildPayloadFromForm();
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/plans`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/plans`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
+      );
       const json = await res.json();
-      if (!res.ok || !json?.status) {
+      if (!res.ok || !json?.status)
         throw new Error(json?.message || "Failed to create plan");
-      }
       return json;
     },
     onSuccess: () => {
       toast.success("Plan created successfully");
       queryClient.invalidateQueries({ queryKey: ["plan"] });
       setModalMode(null);
+      setForm(emptyForm);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -529,18 +595,20 @@ export default function PlanManagement() {
   const editPlanMutaion = useMutation({
     mutationFn: async (id: string) => {
       const payload = buildPayloadFromForm();
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/plans/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/plans/${id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
+      );
       const json = await res.json();
-      if (!res.ok || !json?.status) {
+      if (!res.ok || !json?.status)
         throw new Error(json?.message || "Failed to update plan");
-      }
       return json;
     },
     onSuccess: () => {
@@ -553,17 +621,16 @@ export default function PlanManagement() {
 
   const deleteplanMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/plans/${id}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/plans/${id}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
         },
-      });
+      );
       const json = await res.json();
-      if (!res.ok || !json?.status) {
+      if (!res.ok || !json?.status)
         throw new Error(json?.message || "Failed to delete plan");
-      }
       return json;
     },
     onSuccess: () => {
@@ -580,19 +647,27 @@ export default function PlanManagement() {
   };
 
   const openEdit = (plan: Plan) => {
+    // Backend থেকে আসা targetRoles ব্যবহার করা হচ্ছে
+    const targetRoles: ("LANDLORD" | "AGENT")[] =
+      Array.isArray(plan.targetRoles) && plan.targetRoles.length > 0
+        ? plan.targetRoles
+        : ["LANDLORD", "AGENT"]; // fallback
+
     setForm({
       key: plan.key,
       name: plan.name,
       monthlyPrice: String(plan.monthlyPrice),
       yearlyPrice: String(plan.yearlyPrice),
-      maxProperties: plan.maxProperties === null ? "" : String(plan.maxProperties),
+      maxProperties:
+        plan.maxProperties === null ? "" : String(plan.maxProperties),
       displayOrder: String(plan.displayOrder),
       trialDays: String(plan.trialDays),
-      promoMessage: plan.displayFeatures?.join(", ") || plan.promoMessage,
+      promoMessage: "",
       features: plan.displayFeatures || [],
       featureInput: "",
       freeTier: plan.freeTier,
       active: plan.active,
+      targetRoles: targetRoles, // ← এখানে ঠিক করা হয়েছে
     });
     setModalMode(plan.id);
   };
@@ -600,7 +675,7 @@ export default function PlanManagement() {
   const handleSave = () => {
     if (modalMode === "create") {
       addPlanMutaion.mutate();
-    } else {
+    } else if (modalMode) {
       editPlanMutaion.mutate(String(modalMode));
     }
   };
@@ -612,9 +687,10 @@ export default function PlanManagement() {
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: "plans", label: "Plans", icon: <Tag className="w-4 h-4" /> },
   ];
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* ── Tab Bar ── */}
+      {/* Tab Bar */}
       <div className="bg-white border-b border-gray-200 px-6">
         <div className="flex items-center gap-2 py-3 container mx-auto pl-3">
           {tabs.map((tab) => (
@@ -635,7 +711,6 @@ export default function PlanManagement() {
       </div>
 
       <div className="container mx-auto py-8">
-        {/* ── Page Header ── */}
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
@@ -645,6 +720,7 @@ export default function PlanManagement() {
               Configure pricing tiers, trials, and promo messages.
             </p>
           </div>
+
           <div className="flex items-center gap-2">
             <button
               onClick={() => refetch()}
@@ -653,14 +729,13 @@ export default function PlanManagement() {
               <RefreshCw className="w-4 h-4" />
               Refresh
             </button>
+
             <Select
               value={roleFilter}
-              onValueChange={(value) =>
-                setRoleFilter(value as "all" | "LANDLORD" | "AGENT")
-              }
+              onValueChange={(v) => setRoleFilter(v as any)}
             >
-              <SelectTrigger className="w-[160px] h-10 text-sm text-gray-600 border-gray-200">
-                <SelectValue placeholder="All Roles" />
+              <SelectTrigger className="w-[160px] h-10 text-sm border-gray-200">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
@@ -668,6 +743,7 @@ export default function PlanManagement() {
                 <SelectItem value="AGENT">AGENT</SelectItem>
               </SelectContent>
             </Select>
+
             {modalMode === null && (
               <button
                 onClick={openCreate}
@@ -680,7 +756,7 @@ export default function PlanManagement() {
           </div>
         </div>
 
-        {/* ── Modal (Create / Edit) ── */}
+        {/* Plan Modal */}
         {modalMode !== null && (
           <PlanModal
             title={modalMode === "create" ? "Create new Plan" : "Edit Plan"}
@@ -691,12 +767,12 @@ export default function PlanManagement() {
           />
         )}
 
-        {/* ── Plans Grid ── */}
+        {/* Plans Grid */}
         {activeTab === "plans" && (
           <div className="grid grid-cols-3 gap-5">
             {isLoading
-              ? Array.from({ length: 6 }).map((_, index) => (
-                  <PlanCardSkeleton key={index} />
+              ? Array.from({ length: 6 }).map((_, i) => (
+                  <PlanCardSkeleton key={i} />
                 ))
               : plans
                   .sort((a, b) => a.displayOrder - b.displayOrder)
@@ -710,7 +786,6 @@ export default function PlanManagement() {
                   ))}
           </div>
         )}
-
       </div>
 
       <DeleteListingModal

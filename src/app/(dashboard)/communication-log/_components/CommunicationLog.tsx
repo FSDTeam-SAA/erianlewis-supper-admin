@@ -1,7 +1,6 @@
 "use client";
-
-import React, { useMemo, useState } from "react";
-import { Search, ChevronRight, Calendar } from "lucide-react";
+import React, { useMemo, useState, useEffect } from "react";
+import { Search, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,8 +11,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 
 type LogType = "inquiry" | "appointment" | "inquiry_response";
 
@@ -55,7 +62,7 @@ interface CommLog {
 
 function TypeBadge({ type }: { type: LogType }) {
   const styles: Record<LogType, string> = {
-    inquiry: "bg-blue-100 text-blue-500",
+    inquiry: "bg-blue-100 text-blue-600",
     appointment: "bg-cyan-100 text-cyan-600",
     inquiry_response: "bg-green-100 text-green-600",
   };
@@ -63,7 +70,7 @@ function TypeBadge({ type }: { type: LogType }) {
   const labels: Record<LogType, string> = {
     inquiry: "Inquiry",
     appointment: "Appointment",
-    inquiry_response: "Inquiry response",
+    inquiry_response: "Inquiry Response",
   };
 
   return (
@@ -95,58 +102,60 @@ function formatTimestamp(isoDate?: string) {
 
 function formatWho(who?: ApiPerson) {
   if (!who) return "N/A";
-
-  if (who.name) {
-    return `${who.name} - ${who.email || "N/A"}`;
-  }
-
+  if (who.name) return `${who.name} - ${who.email || "N/A"}`;
   const fullName = `${who.firstName || ""} ${who.lastName || ""}`.trim();
-  if (fullName || who.email) {
-    return `${fullName || "N/A"} - ${who.email || "N/A"}`;
-  }
-
-  return "N/A";
-}
-
-function parseDateRange(input: string) {
-  const value = input.trim();
-  if (!value) return { startDate: "", endDate: "" };
-
-  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!match) return { startDate: "", endDate: "" };
-
-  const [, dd, mm, yyyy] = match;
-  const isoDate = `${yyyy}-${mm}-${dd}`;
-  const date = new Date(`${isoDate}T00:00:00.000Z`);
-  if (Number.isNaN(date.getTime())) return { startDate: "", endDate: "" };
-
-  return { startDate: isoDate, endDate: isoDate };
+  return `${fullName || "N/A"} - ${who.email || "N/A"}`;
 }
 
 function CommunicationLog() {
   const { data: session, status: sessionStatus } = useSession();
   const token = session?.user?.accessToken;
 
-  const [search, setSearch] = useState("");
+  const searchParams = useSearchParams();
+
+  // Get initial search value from URL
+  const initialSearch = searchParams.get("search") || "";
+
+  const [search, setSearch] = useState(initialSearch);
   const [type, setType] = useState("all");
-  const [dateRange, setDateRange] = useState("");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [perPage, setPerPage] = useState("50");
   const [page, setPage] = useState(1);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
+  // Sync with URL changes
+  useEffect(() => {
+    const urlSearch = searchParams.get("search") || "";
+    if (urlSearch !== search) {
+      setSearch(urlSearch);
+      setPage(1);
+    }
+  }, [searchParams, search]);
+
   const { data: communicationData, isLoading } = useQuery({
-    queryKey: ["communication", token, page, perPage, search, type, dateRange],
+    queryKey: [
+      "communication",
+      token,
+      page,
+      perPage,
+      search,
+      type,
+      selectedDate,
+    ],
     enabled: sessionStatus === "authenticated" && !!token,
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set("page", String(page));
       params.set("limit", perPage);
+
       if (search.trim()) params.set("search", search.trim());
       if (type !== "all") params.set("type", type);
 
-      const { startDate, endDate } = parseDateRange(dateRange);
-      if (startDate) params.set("startDate", startDate);
-      if (endDate) params.set("endDate", endDate);
+      if (selectedDate) {
+        const dateStr = format(selectedDate, "yyyy-MM-dd");
+        params.set("startDate", dateStr);
+        params.set("endDate", dateStr);
+      }
 
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/communication-logs?${params.toString()}`,
@@ -155,7 +164,7 @@ function CommunicationLog() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
 
       const json = await res.json();
@@ -177,7 +186,7 @@ function CommunicationLog() {
         subject: log.subject || "N/A",
         messageRaw: log.message ?? null,
       })),
-    [communicationData?.logs]
+    [communicationData?.logs],
   );
 
   const totalData = communicationData?.paginationInfo?.totalData ?? 0;
@@ -186,32 +195,31 @@ function CommunicationLog() {
 
   return (
     <div className="container mx-auto py-8">
-      {/* ── Filter Card ── */}
+      {/* Filter Card */}
       <div className="bg-white rounded-[12px] border border-gray-200 shadow-[1px_1px_4px_0px_#00000040] p-6 mb-4">
         <h1 className="text-2xl font-semibold text-gray-900">
           Communication Log
         </h1>
         <p className="text-sm text-gray-400 mt-1 mb-5">
-          {totalData} total &nbsp;•&nbsp; Page {currentPage} of {totalPages}
+          {totalData} total • Page {currentPage} of {totalPages}
         </p>
 
-        {/* Filters */}
-        <div className="flex items-end gap-3 mb-5">
+        <div className="flex items-end gap-3 mb-5 flex-wrap">
           {/* Search */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-[280px]">
             <label className="text-xs text-gray-500 mb-1 block">
               Search (visitor, owner, sender, email or property)
             </label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
-                placeholder="e.g.erian, erian@gmail.com"
+                placeholder="e.g. erian, erian@gmail.com"
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                className="pl-9 h-11 text-sm border-gray-200 focus-visible:ring-1 focus-visible:ring-gray-300"
+                className="pl-9 h-11 text-sm border-gray-200"
               />
             </div>
           </div>
@@ -227,10 +235,10 @@ function CommunicationLog() {
               }}
             >
               <SelectTrigger className="!h-11 w-full text-sm border-gray-200">
-                <SelectValue placeholder="All Islands" />
+                <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Islands</SelectItem>
+                <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="inquiry">Inquiry</SelectItem>
                 <SelectItem value="appointment">Appointment</SelectItem>
                 <SelectItem value="inquiry_response">
@@ -240,27 +248,41 @@ function CommunicationLog() {
             </Select>
           </div>
 
-          {/* Date range */}
-          <div className="w-52">
+          {/* Date Picker */}
+          <div className="w-60">
             <label className="text-xs text-gray-500 mb-1 block">
-              Date range
+              Select Date
             </label>
-            <div className="relative">
-              <Input
-                placeholder="dd/mm/yyyy"
-                value={dateRange}
-                onChange={(e) => {
-                  setDateRange(e.target.value);
-                  setPage(1);
-                }}
-                className="h-11 text-sm border-gray-200 pr-9 focus-visible:ring-1 focus-visible:ring-gray-300"
-              />
-              <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={`h-11 w-full justify-start text-left font-normal border-gray-200 ${
+                    !selectedDate && "text-gray-400"
+                  }`}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedDate
+                    ? format(selectedDate, "dd/MM/yyyy")
+                    : "Pick a date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => {
+                    setSelectedDate(date);
+                    setPage(1);
+                  }}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 
-        {/* Pagination row */}
+        {/* Pagination Controls */}
         <div className="flex items-center justify-between">
           <p className="text-sm text-gray-400">
             Showing up to {perPage} per page
@@ -285,6 +307,7 @@ function CommunicationLog() {
                 ))}
               </SelectContent>
             </Select>
+
             <Button
               variant="outline"
               size="sm"
@@ -307,7 +330,7 @@ function CommunicationLog() {
         </div>
       </div>
 
-      {/* ── Table ── */}
+      {/* Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <table className="w-full">
           <thead>
@@ -348,34 +371,30 @@ function CommunicationLog() {
                   </tr>
                 ))
               : paginated.map((log) => (
-                  <tr key={log.id} className="hover:bg-gray-50 transition-colors align-top">
-                    {/* WHEN */}
+                  <tr
+                    key={log.id}
+                    className="hover:bg-gray-50 transition-colors align-top"
+                  >
                     <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap align-top">
                       {log.timestamp}
                     </td>
-
-                    {/* TYPE badge */}
                     <td className="px-5 py-3.5 align-top">
                       <TypeBadge type={log.type} />
                     </td>
-
-                    {/* WHO */}
                     <td className="px-5 py-3.5 text-sm text-gray-700 align-top">
                       {log.who}
                     </td>
-
-                    {/* SUBJECT */}
                     <td className="px-5 py-3.5 text-sm text-gray-700 align-top">
                       {log.subject}
                     </td>
 
-                    {/* MESSAGE */}
+                    {/* Message Column */}
                     <td className="px-5 py-3.5 align-top">
                       <div className="space-y-2">
                         <button
                           onClick={() =>
                             setExpandedLogId((current) =>
-                              current === log.id ? null : log.id
+                              current === log.id ? null : log.id,
                             )
                           }
                           className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-[#e53935] hover:text-[#c62828] transition-colors"
@@ -389,12 +408,16 @@ function CommunicationLog() {
                         </button>
 
                         {expandedLogId === log.id && (
-                          <div className="rounded-md bg-[#F3F4F6] p-3">
-                            <pre className="text-sm text-[#475467] whitespace-pre-wrap">
+                          <div className="max-h-96 overflow-auto rounded-md bg-[#F3F4F6] p-4 border border-gray-200">
+                            <pre className="text-sm text-[#475467] whitespace-pre-wrap break-words">
                               {typeof log.messageRaw === "string"
                                 ? (() => {
                                     try {
-                                      return JSON.stringify(JSON.parse(log.messageRaw), null, 2);
+                                      return JSON.stringify(
+                                        JSON.parse(log.messageRaw),
+                                        null,
+                                        2,
+                                      );
                                     } catch {
                                       return log.messageRaw || "N/A";
                                     }
