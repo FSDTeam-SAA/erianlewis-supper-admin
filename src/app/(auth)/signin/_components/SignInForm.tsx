@@ -16,6 +16,9 @@ interface FormData {
   rememberMe: boolean;
 }
 
+const adminDashboardGradient =
+  "linear-gradient(90deg, #4F46E5 0%, #7C3AED 100%)";
+
 const SignInForm = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -57,8 +60,11 @@ const SignInForm = () => {
     <div className="min-h-screen flex items-center justify-center bg-[#eef0f4] px-4">
       {/* Card */}
       <div className="w-full max-w-2xl rounded-2xl overflow-hidden shadow-xl bg-white">
-        {/* ── Red header ── */}
-        <div className="bg-[#EF1A26] px-8 pt-8 pb-7">
+        {/* ── Brand header ── */}
+        <div
+          className="px-8 pt-8 pb-7"
+          style={{ background: adminDashboardGradient }}
+        >
           <div className="flex items-center gap-3 mb-1">
             {/* Icon */}
             <Shield className="w-8 h-8 text-white" strokeWidth={1.8} />
@@ -91,7 +97,7 @@ const SignInForm = () => {
                 value={formData.email}
                 onChange={handleInputChange}
                 required
-                className="h-[51px] border border-[#D1D5DB] rounded-lg bg-white placeholder:text-[#9CA3AF] text-[15px] focus-visible:ring-[#EF1A26] focus-visible:border-[#EF1A26]"
+                className="h-[51px] border border-[#D1D5DB] rounded-lg bg-white placeholder:text-[#9CA3AF] text-[15px] focus-visible:ring-[#4F46E5] focus-visible:border-[#4F46E5]"
               />
             </div>
 
@@ -105,7 +111,7 @@ const SignInForm = () => {
                 value={formData.password}
                 onChange={handleInputChange}
                 required
-                className="h-[51px] border border-[#D1D5DB] rounded-lg bg-white placeholder:text-[#9CA3AF] text-[15px] pr-11 focus-visible:ring-[#EF1A26] focus-visible:border-[#EF1A26]"
+                className="h-[51px] border border-[#D1D5DB] rounded-lg bg-white placeholder:text-[#9CA3AF] text-[15px] pr-11 focus-visible:ring-[#4F46E5] focus-visible:border-[#4F46E5]"
               />
               <button
                 type="button"
@@ -143,7 +149,7 @@ const SignInForm = () => {
               </div>
               {/* <Link
                 href="/forgot-password"
-                className="text-sm text-[#EF1A26] hover:text-[#c8141e] transition-colors"
+                className="text-sm text-[#4F46E5] hover:text-[#4338CA] transition-colors"
               >
                 Forgot Password?
               </Link> */}
